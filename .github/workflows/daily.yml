@@ -30,6 +30,17 @@ jobs:
       - name: 依存関係をインストール
         run: pip install -r requirements.txt
 
+      - name: 診断（一時的）
+        run: |
+          set -o pipefail
+          python scripts/diagnose.py 2>&1 | tee /tmp/diag.log || true
+          mkdir -p debug && tail -c 60000 /tmp/diag.log > debug/diag.txt
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git pull --rebase -q || true
+          git add -f debug/diag.txt && git commit -m "debug: 診断出力" || true
+          git push || true
+
       - name: 予測ページを生成
         run: |
           set -o pipefail

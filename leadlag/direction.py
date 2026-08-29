@@ -114,14 +114,27 @@ def naive_direction(frame: pd.DataFrame) -> pd.DataFrame:
 
 
 def latest_direction(
-    bundle: DataBundle, window: int = 250, min_obs: int = 120, use_jp_prev: bool = True
+    bundle: DataBundle,
+    window: int = 250,
+    min_obs: int = 120,
+    use_jp_prev: bool = True,
+    asof: pd.Timestamp | None = None,
 ) -> dict:
-    """最新の米国終値から翌営業日の東京市場の方向を予測する (日次運用用)。"""
+    """最新の米国終値から翌営業日の東京市場の方向を予測する (日次運用用)。
+
+    asof を渡すとその日付の米国終値を基準にする。業種シグナル側が
+    データ欠損で 1 日さかのぼったときに、両者の基準日をそろえるために使う。
+    """
     us_ew = bundle.us_cc.mean(axis=1, skipna=True).dropna()
     jp_ew_oc = bundle.jp_oc.mean(axis=1, skipna=True)
     jp_ew_cc = bundle.jp_cc.mean(axis=1, skipna=True)
 
     dates = us_ew.index
+    if asof is not None:
+        pos = dates.searchsorted(pd.Timestamp(asof), side="right") - 1
+        if pos < 0:
+            raise RuntimeError("指定された基準日より前の米国データがありません")
+        dates = dates[: pos + 1]
     t = dates[-1]
 
     # 学習データ: (t' の米国, t'+1 の東京) のペアを過去から作る

@@ -153,6 +153,13 @@ def build_bundle(us_panel: pd.DataFrame, jp_panel: pd.DataFrame) -> DataBundle:
     jp_open = jp_panel.loc[:, [(t, "Open") for t in jp_tk]]
     jp_open.columns = jp_tk
 
+    # yfinance は取引がまだ確定していない日や祝日について、全銘柄 NaN の
+    # 空行を返してくることがある。この行を残すと「最新の営業日」がその空行に
+    # なり、当日の米国ショックが取れなくなるので、市場ごとに取り除く。
+    us_close = us_close.dropna(how="all")
+    jp_close = jp_close.dropna(how="all")
+    jp_open = jp_open.reindex(jp_close.index)
+
     # close-to-close は各市場の連続する自国営業日で計算してから共通日に絞る。
     # (先に共通日で間引くと、休場を跨いだリターンが欠落してしまう)
     us_cc_full = us_close.pct_change()

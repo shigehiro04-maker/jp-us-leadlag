@@ -151,7 +151,7 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     longs = [t for t in sig.index if w.get(t, 0) > 0]
     shorts = [t for t in sig.index if w.get(t, 0) < 0]
 
-    md = latest_direction(bundle)
+    md = latest_direction(bundle, asof=asof)
 
     # 次の東京立会日 (概算: 翌営業日。祝日は当日になって確定する)
     next_session = (asof + pd.offsets.BDay(1)).date()

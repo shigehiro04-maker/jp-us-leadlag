@@ -217,7 +217,7 @@ def cmd_predict(a) -> int:
 
     print("\n【市場全体の地合い】(ローリング回帰による別モデル)")
     try:
-        md = latest_direction(bundle)
+        md = latest_direction(bundle, asof=asof)
         direction = md["direction"]
         print(f"  当日の米国EWリターン : {md['us_ew_cc']*100:+.2f}%")
         print(f"  翌日の東京EW日中予測 : {md['pred']*100:+.2f}%  → {direction}")

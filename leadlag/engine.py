@@ -235,18 +235,41 @@ class LeadLagEngine:
         return panel
 
     # -- 最新 1 日分だけ (日次予測用) --------------------------------------
-    def latest(self):
-        """最新の米国終値に基づく翌営業日シグナルを返す。"""
+    def latest(self, max_lookback: int = 5):
+        """最新の米国終値に基づく翌営業日シグナルを返す。
+
+        データ提供元が当日ぶんをまだ埋めていないことがあるので、末尾から
+        最大 max_lookback 営業日さかのぼり、米国側が十分そろっている
+        直近の日を使う。返り値の日付でどの終値を使ったか分かる。
+        """
         p = self.p
         L = p.window
-        i = len(self.dates) - 1
+
+        i = None
+        for back in range(max_lookback + 1):
+            j = len(self.dates) - 1 - back
+            if j - L < 0:
+                break
+            w = self.returns.iloc[j - L : j]
+            n_us = sum(
+                1 for t in self.us_tickers
+                if w[t].notna().all() and np.isfinite(self.returns.iloc[j][t])
+            )
+            n_jp = sum(1 for t in self.jp_tickers if w[t].notna().all())
+            if n_us >= p.min_names and n_jp >= p.min_names:
+                i = j
+                break
+
+        if i is None:
+            raise RuntimeError(
+                f"直近 {max_lookback + 1} 営業日ぶんのデータが不足しています。"
+                "価格データの取得結果を確認してください。"
+            )
 
         win = self.returns.iloc[i - L : i]
         us_ok = [t for t in self.us_tickers
                  if win[t].notna().all() and np.isfinite(self.returns.iloc[i][t])]
         jp_ok = [t for t in self.jp_tickers if win[t].notna().all()]
-        if len(us_ok) < p.min_names or len(jp_ok) < p.min_names:
-            raise RuntimeError("直近データが不足しています")
 
         cf = self.c_full_at(i).loc[us_ok + jp_ok, us_ok + jp_ok].to_numpy()
         res = compute_signal(

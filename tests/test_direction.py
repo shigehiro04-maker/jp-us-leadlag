@@ -75,6 +75,18 @@ def test_naive_and_regression_agree_directionally():
     assert agree > 0.7
 
 
+def test_latest_direction_respects_asof():
+    """業種シグナルがさかのぼったとき、方向モデルも同じ基準日を使うこと。"""
+    bundle, _ = make_bundle(n_days=800, seed=23, rho=0.4)
+    last = bundle.dates[-1]
+    prev = bundle.dates[-2]
+    assert latest_direction(bundle, asof=last)["asof"] == last
+    assert latest_direction(bundle, asof=prev)["asof"] == prev
+    assert latest_direction(bundle, asof=prev)["pred"] != latest_direction(
+        bundle, asof=last
+    )["pred"]
+
+
 def test_latest_direction_returns_finite_prediction():
     bundle, _ = make_bundle(n_days=800, seed=22, rho=0.4)
     res = latest_direction(bundle)

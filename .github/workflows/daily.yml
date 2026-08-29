@@ -30,32 +30,8 @@ jobs:
       - name: 依存関係をインストール
         run: pip install -r requirements.txt
 
-      - name: 診断（一時的）
-        run: |
-          set -o pipefail
-          python scripts/diagnose.py 2>&1 | tee /tmp/diag.log || true
-          mkdir -p debug && tail -c 60000 /tmp/diag.log > debug/diag.txt
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git pull --rebase -q || true
-          git add -f debug/diag.txt && git commit -m "debug: 診断出力" || true
-          git push || true
-
       - name: 予測ページを生成
-        run: |
-          set -o pipefail
-          python scripts/build_page.py --outdir docs 2>&1 | tee /tmp/gen.log
-
-      - name: 失敗したログを残す（デバッグ用・後で削除）
-        if: failure()
-        run: |
-          mkdir -p debug
-          tail -c 40000 /tmp/gen.log > debug/last_error.log || echo "ログなし" > debug/last_error.log
-          git config user.name  "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add -f debug/last_error.log
-          git commit -m "debug: 失敗ログ" || true
-          git push || true
+        run: python scripts/build_page.py --outdir docs
 
       - name: 変更をコミット
         run: |

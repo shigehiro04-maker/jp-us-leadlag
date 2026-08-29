@@ -213,6 +213,13 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         for h in reversed(recent[-15:])
     )
 
+    # データの鮮度。提供元が当日ぶんをまだ埋めていないと asof が 1 日古くなるので、
+    # どの日付まで取得できていたかをページと実行ログの両方に残す。
+    us_last = bundle.us_cc.dropna(how="all").index[-1].date()
+    jp_last = bundle.jp_close.dropna(how="all").index[-1].date()
+    lag = "" if str(us_last) == str(asof.date()) else "（提供元の更新待ちで1日前を使用）"
+    print(f"データ最終日: US {us_last} / JP {jp_last} / 使用した米国終値 {asof.date()} {lag}")
+
     generated = datetime.now(JST).strftime("%Y-%m-%d %H:%M JST")
     html_doc = PAGE.format(
         asof=asof.date(),
@@ -235,6 +242,8 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         f_scores=", ".join(f"f{i+1}={v:+.2f}" for i, v in enumerate(res.factor_scores)),
         generated=generated,
         asof_iso=asof.date().isoformat(),
+        us_last=us_last,
+        jp_last=jp_last,
     )
 
     outdir.mkdir(parents=True, exist_ok=True)
@@ -394,7 +403,7 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 </section>
 
 <footer>
-  生成: {generated}<br>
+  生成: {generated}　/　取得できたデータの最終日: 米国 {us_last}・日本 {jp_last}<br>
   中川 慧ほか「部分空間正則化付き主成分分析を用いた日米業種リードラグ投資戦略」
   (SIG-FIN-036-13) の再現実装による出力です。<br>
   <b>投資助言ではありません。</b>バックテスト上の成績は将来の成果を保証しません。

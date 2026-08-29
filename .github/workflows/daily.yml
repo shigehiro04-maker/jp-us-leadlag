@@ -31,7 +31,20 @@ jobs:
         run: pip install -r requirements.txt
 
       - name: 予測ページを生成
-        run: python scripts/build_page.py --outdir docs
+        run: |
+          set -o pipefail
+          python scripts/build_page.py --outdir docs 2>&1 | tee /tmp/gen.log
+
+      - name: 失敗したログを残す（デバッグ用・後で削除）
+        if: failure()
+        run: |
+          mkdir -p debug
+          tail -c 40000 /tmp/gen.log > debug/last_error.log || echo "ログなし" > debug/last_error.log
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f debug/last_error.log
+          git commit -m "debug: 失敗ログ" || true
+          git push || true
 
       - name: 変更をコミット
         run: |

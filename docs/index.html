@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="日米リードラグ">
+<meta name="theme-color" content="#0b1020">
+<title>日米リードラグ 2026-08-27</title>
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230b1020'/%3E%3Cpath d='M28 120 L64 84 L96 104 L152 52' stroke='%2360a5fa' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='152' cy='52' r='13' fill='%23f87171'/%3E%3C/svg%3E">
+<style>
+:root {
+  --bg:#f6f7fb; --card:#fff; --fg:#14161c; --muted:#6b7280; --line:#e5e7eb;
+  --up:#0d9488; --down:#dc2626; --accent:#2563eb;
+  --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
+}
+@media (prefers-color-scheme:dark) {
+  :root { --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
+    --up:#2dd4bf; --down:#f87171; --accent:#60a5fa; }
+}
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+body {
+  margin:0; background:var(--bg); color:var(--fg);
+  font:16px/1.5 -apple-system,BlinkMacSystemFont,"Hiragino Sans","Noto Sans JP",sans-serif;
+  padding:calc(var(--safe-t) + 12px) 12px calc(var(--safe-b) + 28px);
+  max-width:560px; margin-inline:auto;
+}
+header { margin:4px 4px 14px; }
+h1 { font-size:15px; font-weight:600; margin:0; color:var(--muted); letter-spacing:.02em; }
+.date { font-size:26px; font-weight:700; margin:2px 0 0; letter-spacing:-.01em; }
+.sub { font-size:13px; color:var(--muted); margin-top:3px; }
+.card { background:var(--card); border:1px solid var(--line); border-radius:16px;
+  padding:16px; margin-bottom:12px; }
+.card h2 { font-size:12px; font-weight:600; color:var(--muted); margin:0 0 12px;
+  text-transform:uppercase; letter-spacing:.08em; }
+.dir { display:flex; align-items:baseline; gap:10px; }
+.dir .word { font-size:38px; font-weight:800; letter-spacing:-.02em; line-height:1; }
+.dir .pct { font-size:19px; font-weight:600; }
+.up { color:var(--up); } .down { color:var(--down); }
+.flat-dir { color:var(--muted); }
+.weak { font-size:10px; color:var(--muted); border:1px solid var(--line);
+  border-radius:4px; padding:0 3px; margin-left:5px; vertical-align:1px; }
+.meta { font-size:13px; color:var(--muted); margin-top:10px; }
+.meta b { color:var(--fg); font-weight:600; }
+ul { list-style:none; padding:0; margin:0; }
+.row { display:grid; grid-template-columns:52px 1fr 76px 52px; align-items:center;
+  gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:14px; }
+.row:last-child { border-bottom:0; }
+.tk { font-variant-numeric:tabular-nums; font-size:12px; color:var(--muted); }
+.nm { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.sg { text-align:right; font-variant-numeric:tabular-nums; font-size:13px; }
+.row.long .sg { color:var(--up); font-weight:600; }
+.row.short .sg { color:var(--down); font-weight:600; }
+.row.flat { opacity:.55; }
+.bar { position:relative; display:block; height:6px; background:var(--line);
+  border-radius:3px; }
+.bar i { position:absolute; top:0; height:6px; border-radius:3px; }
+.bar i.pos { background:var(--up); } .bar i.neg { background:var(--down); }
+.label { font-size:12px; font-weight:700; letter-spacing:.06em; margin:2px 0 8px; }
+.label.l { color:var(--up); } .label.s { color:var(--down); }
+details { margin-top:10px; }
+details > summary { cursor:pointer; font-size:13px; color:var(--accent);
+  list-style:none; padding:8px 0; }
+details > summary::-webkit-details-marker { display:none; }
+details > summary::after { content:" ›"; }
+details[open] > summary::after { content:" ⌄"; }
+.stats { display:flex; gap:18px; margin-bottom:10px; }
+.stat .v { font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }
+.stat .k { font-size:11px; color:var(--muted); }
+.spark { width:100%; height:48px; display:block; margin:6px 0 2px; }
+.sparkline { stroke:var(--accent); stroke-width:2; vector-effect:non-scaling-stroke; }
+.zero { stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; }
+.hrow { display:grid; grid-template-columns:56px 1fr 28px; padding:5px 0;
+  font-size:13px; border-bottom:1px solid var(--line); }
+.hd { color:var(--muted); font-variant-numeric:tabular-nums; }
+.hv { text-align:right; font-variant-numeric:tabular-nums; }
+.hv.pos { color:var(--up); } .hv.neg { color:var(--down); }
+.hm { text-align:right; color:var(--muted); }
+.stale { display:none; background:var(--down); color:#fff; border-radius:12px;
+  padding:10px 14px; font-size:13px; margin-bottom:12px; }
+footer { font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0; }
+</style>
+</head>
+<body>
+<div class="stale" id="stale"></div>
+
+<header>
+  <h1>次の東京立会日の予想</h1>
+  <p class="date">2026-08-28</p>
+  <p class="sub">NY 2026-08-27 終値時点の情報にもとづく（寄付き→大引け）</p>
+</header>
+
+<section class="card">
+  <h2>市場全体の方向</h2>
+  <div class="dir">
+    <span class="word flat-dir">－ ほぼ横ばい</span>
+    <span class="pct flat-dir">-0.00%</span>
+  </div>
+  <p class="meta">当日の米国11業種 等ウェイト <b>-0.52%</b> ・
+     予測の残差標準偏差 <b>0.75%</b><br>
+     1日先の方向の的中率は現実的に53〜56%程度です。予測値の絶対値は
+     残差標準偏差よりずっと小さいことが普通なので、方向の目安として見てください。</p>
+</section>
+
+<section class="card">
+  <h2>業種ランキング（相対の強弱）</h2>
+  <p class="label l">▲ ロング（強いと予想）</p>
+  <ul>
+      <li class="row long">
+        <span class="tk">1630.T</span>
+        <span class="nm">小売</span>
+        <span class="bar"><i class="pos" style="left:50%;width:50.0%"></i></span>
+        <span class="sg">+0.015</span>
+      </li>
+      <li class="row long">
+        <span class="tk">1617.T</span>
+        <span class="nm">食品</span>
+        <span class="bar"><i class="pos" style="left:50%;width:45.4%"></i></span>
+        <span class="sg">+0.014</span>
+      </li>
+      <li class="row long">
+        <span class="tk">1627.T</span>
+        <span class="nm">電力・ガス</span>
+        <span class="bar"><i class="pos" style="left:50%;width:43.2%"></i></span>
+        <span class="sg">+0.013</span>
+      </li>
+      <li class="row long">
+        <span class="tk">1621.T</span>
+        <span class="nm">医薬品</span>
+        <span class="bar"><i class="pos" style="left:50%;width:32.5%"></i></span>
+        <span class="sg">+0.010</span>
+      </li>
+      <li class="row long">
+        <span class="tk">1626.T</span>
+        <span class="nm">情報通信・サービスその他</span>
+        <span class="bar"><i class="pos" style="left:50%;width:23.8%"></i></span>
+        <span class="sg">+0.007</span>
+      </li>
+  </ul>
+  <p class="label s" style="margin-top:14px">▼ ショート（弱いと予想）</p>
+  <ul>
+      <li class="row short">
+        <span class="tk">1624.T</span>
+        <span class="nm">機械</span>
+        <span class="bar"><i class="neg" style="right:50%;width:15.0%"></i></span>
+        <span class="sg">-0.004</span>
+      </li>
+      <li class="row short">
+        <span class="tk">1629.T</span>
+        <span class="nm">商社・卸売</span>
+        <span class="bar"><i class="neg" style="right:50%;width:27.7%"></i></span>
+        <span class="sg">-0.008</span>
+      </li>
+      <li class="row short">
+        <span class="tk">1618.T</span>
+        <span class="nm">エネルギー資源</span>
+        <span class="bar"><i class="neg" style="right:50%;width:27.8%"></i></span>
+        <span class="sg">-0.008</span>
+      </li>
+      <li class="row short">
+        <span class="tk">1631.T</span>
+        <span class="nm">銀行</span>
+        <span class="bar"><i class="neg" style="right:50%;width:31.6%"></i></span>
+        <span class="sg">-0.009</span>
+      </li>
+      <li class="row short">
+        <span class="tk">1625.T</span>
+        <span class="nm">電機・精密</span>
+        <span class="bar"><i class="neg" style="right:50%;width:35.5%"></i></span>
+        <span class="sg">-0.011</span>
+      </li>
+  </ul>
+  <details>
+    <summary>中間の業種を表示</summary>
+    <ul>
+      <li class="row flat">
+        <span class="tk">1632.T</span>
+        <span class="nm">金融(除く銀行)</span>
+        <span class="bar"><i class="pos" style="left:50%;width:22.4%"></i></span>
+        <span class="sg">+0.007</span>
+      </li>
+      <li class="row flat">
+        <span class="tk">1622.T</span>
+        <span class="nm">自動車・輸送機</span>
+        <span class="bar"><i class="pos" style="left:50%;width:17.1%"></i></span>
+        <span class="sg">+0.005</span>
+      </li>
+      <li class="row flat">
+        <span class="tk">1633.T</span>
+        <span class="nm">不動産</span>
+        <span class="bar"><i class="pos" style="left:50%;width:16.3%"></i></span>
+        <span class="sg">+0.005</span>
+      </li>
+      <li class="row flat">
+        <span class="tk">1620.T</span>
+        <span class="nm">素材・化学 <span class="weak" title="シグナルが弱く実質ノイズです">弱</span></span>
+        <span class="bar"><i class="pos" style="left:50%;width:9.7%"></i></span>
+        <span class="sg">+0.003</span>
+      </li>
+      <li class="row flat">
+        <span class="tk">1628.T</span>
+        <span class="nm">運輸・物流 <span class="weak" title="シグナルが弱く実質ノイズです">弱</span></span>
+        <span class="bar"><i class="neg" style="right:50%;width:0.5%"></i></span>
+        <span class="sg">-0.000</span>
+      </li>
+      <li class="row flat">
+        <span class="tk">1619.T</span>
+        <span class="nm">建設・資材</span>
+        <span class="bar"><i class="neg" style="right:50%;width:13.2%"></i></span>
+        <span class="sg">-0.004</span>
+      </li>
+      <li class="row flat">
+        <span class="tk">1623.T</span>
+        <span class="nm">鉄鋼・非鉄</span>
+        <span class="bar"><i class="neg" style="right:50%;width:13.3%"></i></span>
+        <span class="sg">-0.004</span>
+      </li>
+    </ul>
+  </details>
+  <details>
+    <summary>米国業種の当日ショック（窓内標準化 z）</summary>
+    <ul>
+      <li class="row long"><span class="tk">XLK</span><span class="nm">情報技術</span><span class="bar"><i class="pos" style="left:50%;width:50.0%"></i></span><span class="sg">+1.42</span></li>
+      <li class="row short"><span class="tk">XLE</span><span class="nm">エネルギー</span><span class="bar"><i class="neg" style="right:50%;width:9.1%"></i></span><span class="sg">-0.26</span></li>
+      <li class="row short"><span class="tk">XLU</span><span class="nm">公益</span><span class="bar"><i class="neg" style="right:50%;width:25.2%"></i></span><span class="sg">-0.72</span></li>
+      <li class="row short"><span class="tk">XLB</span><span class="nm">素材</span><span class="bar"><i class="neg" style="right:50%;width:26.4%"></i></span><span class="sg">-0.75</span></li>
+      <li class="row short"><span class="tk">XLY</span><span class="nm">一般消費財</span><span class="bar"><i class="neg" style="right:50%;width:26.9%"></i></span><span class="sg">-0.76</span></li>
+      <li class="row short"><span class="tk">XLI</span><span class="nm">資本財</span><span class="bar"><i class="neg" style="right:50%;width:27.8%"></i></span><span class="sg">-0.79</span></li>
+      <li class="row short"><span class="tk">XLC</span><span class="nm">コミュニケーション</span><span class="bar"><i class="neg" style="right:50%;width:28.7%"></i></span><span class="sg">-0.82</span></li>
+      <li class="row short"><span class="tk">XLRE</span><span class="nm">不動産</span><span class="bar"><i class="neg" style="right:50%;width:35.5%"></i></span><span class="sg">-1.01</span></li>
+      <li class="row short"><span class="tk">XLF</span><span class="nm">金融</span><span class="bar"><i class="neg" style="right:50%;width:37.1%"></i></span><span class="sg">-1.05</span></li>
+      <li class="row short"><span class="tk">XLV</span><span class="nm">ヘルスケア</span><span class="bar"><i class="neg" style="right:50%;width:39.6%"></i></span><span class="sg">-1.13</span></li>
+      <li class="row short"><span class="tk">XLP</span><span class="nm">生活必需品</span><span class="bar"><i class="neg" style="right:50%;width:45.4%"></i></span><span class="sg">-1.29</span></li>
+    </ul>
+    <p class="meta">共通ファクター f1=+0.45, f2=+2.14, f3=+0.04</p>
+  </details>
+</section>
+
+<section class="card">
+  <h2>直近の実績（ロングショート）</h2>
+  <div class="stats">
+    <div class="stat"><div class="v">—</div><div class="k">直近0営業日 累積</div></div>
+    <div class="stat"><div class="v">—</div><div class="k">方向の的中率</div></div>
+  </div>
+  
+  <details>
+    <summary>日別の内訳</summary>
+    <ul>
+<li class="hrow"><span class="hd">まだ履歴がありません</span></li>
+    </ul>
+  </details>
+  <p class="meta">実際に運用した記録ではなく、毎朝このページが出した予想を
+     その日の実現リターンで後から採点したものです。取引コストは含みません。</p>
+</section>
+
+<footer>
+  生成: 2026-08-29 16:17 JST<br>
+  中川 慧ほか「部分空間正則化付き主成分分析を用いた日米業種リードラグ投資戦略」
+  (SIG-FIN-036-13) の再現実装による出力です。<br>
+  <b>投資助言ではありません。</b>バックテスト上の成績は将来の成果を保証しません。
+  実際の売買では取引コスト・スリッページ・流動性の影響を受けます。
+  投資判断はご自身の責任で行ってください。
+</footer>
+
+<script>
+(function () {
+  var asof = new Date("2026-08-27T21:00:00Z");
+  var days = (Date.now() - asof.getTime()) / 86400000;
+  if (days > 4) {
+    var el = document.getElementById("stale");
+    el.textContent = "⚠ このページは " + Math.floor(days) +
+      " 日前のデータです。自動更新が止まっている可能性があります。";
+    el.style.display = "block";
+  }
+})();
+</script>
+</body>
+</html>

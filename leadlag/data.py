@@ -35,6 +35,10 @@ class DataBundle:
     us_close: pd.DataFrame
     jp_close: pd.DataFrame
     jp_open: pd.DataFrame
+    # 共通営業日に絞る前の、各市場で実際に価格が取れていた最終日。
+    # 提供元の更新遅れ（片方だけ当日ぶんが無い状態）を見分けるために持つ。
+    us_last_raw: pd.Timestamp | None = None
+    jp_last_raw: pd.Timestamp | None = None
 
     @property
     def dates(self) -> pd.DatetimeIndex:
@@ -176,6 +180,8 @@ def build_bundle(us_panel: pd.DataFrame, jp_panel: pd.DataFrame) -> DataBundle:
         us_close=us_close.loc[common],
         jp_close=jp_close.loc[common],
         jp_open=jp_open.loc[common],
+        us_last_raw=us_close.index[-1] if len(us_close) else None,
+        jp_last_raw=jp_close.index[-1] if len(jp_close) else None,
     )
 
 

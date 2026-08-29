@@ -42,6 +42,19 @@ def test_all_nan_trailing_row_is_dropped():
     assert ghost not in bundle.dates
     assert bundle.dates[-1] == dates[-1]
     assert bundle.us_cc.loc[bundle.dates[-1]].notna().all()
+    assert bundle.us_last_raw == dates[-1]      # 空行は最終日として数えない
+
+
+def test_raw_last_dates_expose_one_sided_lag():
+    """片方の市場だけ当日ぶんが未配信のとき、それが分かること。"""
+    dates = pd.bdate_range("2024-01-01", periods=100)
+    us = _panels(dates.delete(-1), ["XLB", "XLE", "XLF"], seed=7)   # 米国だけ1日遅れ
+    jp = _panels(dates, ["1617.T", "1618.T", "1619.T"], seed=8)
+
+    bundle = build_bundle(us, jp)
+    assert bundle.us_last_raw == dates[-2]
+    assert bundle.jp_last_raw == dates[-1]
+    assert bundle.dates[-1] == dates[-2]
 
 
 def test_close_to_close_spans_own_market_holidays():

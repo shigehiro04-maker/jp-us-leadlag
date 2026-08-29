@@ -215,8 +215,8 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
 
     # データの鮮度。提供元が当日ぶんをまだ埋めていないと asof が 1 日古くなるので、
     # どの日付まで取得できていたかをページと実行ログの両方に残す。
-    us_last = bundle.us_cc.dropna(how="all").index[-1].date()
-    jp_last = bundle.jp_close.dropna(how="all").index[-1].date()
+    us_last = (bundle.us_last_raw or bundle.dates[-1]).date()
+    jp_last = (bundle.jp_last_raw or bundle.dates[-1]).date()
     lag = "" if str(us_last) == str(asof.date()) else "（提供元の更新待ちで1日前を使用）"
     print(f"データ最終日: US {us_last} / JP {jp_last} / 使用した米国終値 {asof.date()} {lag}")
 

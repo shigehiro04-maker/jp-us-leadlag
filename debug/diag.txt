@@ -1,0 +1,79 @@
+yfinance: 1.7.0 pandas: 3.0.5
+US panel: (4189, 22) 2010-01-04 -> 2026-08-28
+JP panel: (4093, 34) 2010-01-04 -> 2026-08-28
+US cols: ['XLB', 'XLC', 'XLE', 'XLF', 'XLI', 'XLK', 'XLP', 'XLRE', 'XLU', 'XLV', 'XLY']
+JP cols: ['1617.T', '1618.T', '1619.T', '1620.T', '1621.T', '1622.T', '1623.T', '1624.T', '1625.T', '1626.T', '1627.T', '1628.T', '1629.T', '1630.T', '1631.T', '1632.T', '1633.T']
+US index tail: ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28']
+JP index tail: ['2026-08-24', '2026-08-25', '2026-08-26', '2026-08-27', '2026-08-28']
+common: 3951 2010-01-04 -> 2026-08-28
+--- us_cc tail notna per row ---
+Date
+2026-08-21    11
+2026-08-24    11
+2026-08-25    11
+2026-08-26    11
+2026-08-27    11
+2026-08-28     0
+--- jp_cc tail notna per row ---
+Date
+2026-08-21    17
+2026-08-24    17
+2026-08-25    17
+2026-08-26    17
+2026-08-27    17
+2026-08-28    17
+--- jp_oc tail notna per row ---
+Date
+2026-08-21    17
+2026-08-24    17
+2026-08-25    17
+2026-08-26    17
+2026-08-27    17
+2026-08-28    17
+--- us_close tail ---
+                  XLB         XLC        XLE        XLF         XLI         XLK
+Date                                                                           
+2026-08-26  53.669998  112.610001  62.430000  58.259998  180.339996  182.839996
+2026-08-27  53.230000  111.410004  62.290001  57.880001  178.800003  188.610001
+2026-08-28        NaN         NaN        NaN        NaN         NaN         NaN
+--- jp_close tail ---
+             1617.T   1618.T   1619.T   1620.T   1621.T   1622.T
+Date                                                            
+2026-08-26  49520.0  34840.0  45290.0  37120.0  31240.0  35230.0
+2026-08-27  49240.0  35200.0  45480.0  37370.0  30990.0  35210.0
+2026-08-28  49350.0  35120.0  45070.0  37330.0  31100.0  35680.0
+--- jp_open tail ---
+             1617.T   1618.T   1619.T   1620.T   1621.T   1622.T
+Date                                                            
+2026-08-26  49820.0  35200.0  45550.0  37200.0  30980.0  35270.0
+2026-08-27  49120.0  34960.0  45630.0  37390.0  30820.0  35450.0
+2026-08-28  49090.0  35110.0  45390.0  37370.0  31000.0  35100.0
+window: 2026-06-01 -> 2026-08-27 rows 60
+US XLB   win_ok=True nan_in_win=0 today=nan
+US XLC   win_ok=True nan_in_win=0 today=nan
+US XLE   win_ok=True nan_in_win=0 today=nan
+US XLF   win_ok=True nan_in_win=0 today=nan
+US XLI   win_ok=True nan_in_win=0 today=nan
+US XLK   win_ok=True nan_in_win=0 today=nan
+US XLP   win_ok=True nan_in_win=0 today=nan
+US XLRE  win_ok=True nan_in_win=0 today=nan
+US XLU   win_ok=True nan_in_win=0 today=nan
+US XLV   win_ok=True nan_in_win=0 today=nan
+US XLY   win_ok=True nan_in_win=0 today=nan
+JP 1617.T   win_ok=True nan_in_win=0 today=0.002233956133224968
+JP 1618.T   win_ok=True nan_in_win=0 today=-0.002272727272727315
+JP 1619.T   win_ok=True nan_in_win=0 today=-0.009014951627088874
+JP 1620.T   win_ok=True nan_in_win=0 today=-0.0010703773080010803
+JP 1621.T   win_ok=True nan_in_win=0 today=0.00354953210713127
+JP 1622.T   win_ok=True nan_in_win=0 today=0.01334848054529969
+JP 1623.T   win_ok=True nan_in_win=0 today=-0.002399520095980767
+JP 1624.T   win_ok=True nan_in_win=0 today=-0.00222795497185746
+JP 1625.T   win_ok=True nan_in_win=0 today=0.010174194542932113
+JP 1626.T   win_ok=True nan_in_win=0 today=0.016860949208992615
+JP 1627.T   win_ok=True nan_in_win=0 today=0.0016757436112275759
+JP 1628.T   win_ok=True nan_in_win=0 today=0.007015161801312564
+JP 1629.T   win_ok=True nan_in_win=0 today=0.011580035280461809
+JP 1630.T   win_ok=True nan_in_win=0 today=0.0018459915611814814
+JP 1631.T   win_ok=True nan_in_win=0 today=0.00536585365853659
+JP 1632.T   win_ok=True nan_in_win=0 today=0.011915887850467266
+JP 1633.T   win_ok=True nan_in_win=0 today=0.010018032458425141

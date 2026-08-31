@@ -60,6 +60,22 @@ def test_page_contains_disclaimer(daily_pages):
     assert "投資助言ではありません" in doc
 
 
+def test_page_frames_intraday_as_sell_bias_not_direction(daily_pages):
+    """日中の地合いを「上がる/下がる」ではなく売り圧力の強弱として見せること。
+
+    実データの検証で、このモデルの的中率は日中リターンが恒常的にマイナスである
+    ことを拾っているだけで、上下の予測としては価値がないと分かったため。
+    """
+    out, _ = daily_pages
+    doc = (out / "index.html").read_text()
+
+    assert "日中の地合い" in doc
+    assert "下押し圧力" in doc
+    for banned in ("市場全体の方向", "方向予想", "方向の的中率"):
+        assert banned not in doc, f"方向の当てものとしての表現が残っている: {banned}"
+    assert any(s in doc for s in ("強い", "やや強い", "標準", "やや弱い", "弱い"))
+
+
 def test_history_accumulates_and_resolves(daily_pages):
     out, _ = daily_pages
     hist = json.loads((out / "history.json").read_text())
@@ -71,7 +87,8 @@ def test_history_accumulates_and_resolves(daily_pages):
     for h in resolved:
         assert h["exec_date"] > h["asof"]
         assert len(h["long"]) == len(h["short"]) == 5
-        assert isinstance(h["direction_correct"], bool)
+        assert isinstance(h["market_return"], float)
+        assert isinstance(h["strength"], str)
 
 
 def test_resolved_return_matches_actual_data(daily_pages):

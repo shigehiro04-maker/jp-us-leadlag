@@ -215,19 +215,22 @@ def cmd_predict(a) -> int:
 
     from .direction import latest_direction
 
-    print("\n【市場全体の地合い】(ローリング回帰による別モデル)")
+    print("\n【日中の地合い】(ローリング回帰による別モデル)")
     try:
         md = latest_direction(bundle, asof=asof)
-        direction = md["direction"]
+        direction = f"{md['bias']}・{md['strength']}"
+        print(f"  地合い               : {md['bias']}　下押し圧力: {md['strength']}")
+        print(f"  翌日の東京EW日中予測 : {md['pred']*1e4:+.0f}bp")
+        print(f"  過去{md['n_train']}営業日の日中平均 : {md['base_mean']*1e4:+.0f}bp "
+              f"(うち下落 {md['base_share_down']*100:.0f}%)")
         print(f"  当日の米国EWリターン : {md['us_ew_cc']*100:+.2f}%")
-        print(f"  翌日の東京EW日中予測 : {md['pred']*100:+.2f}%  → {direction}")
-        print(f"  予測の残差標準偏差   : {md['resid_sd']*100:.2f}%  "
-              f"(学習 {md['n_train']} 日)")
+        print(f"  予測の残差標準偏差   : {md['resid_sd']*100:.2f}%")
     except RuntimeError as e:
         direction = "判定不能"
         md = {"pred": float("nan")}
         print(f"  {e}")
-    print(f"  ※ 1 日先の方向の的中率はせいぜい 55% 前後です。過信しないでください。")
+    print("  ※ 上下を当てるモデルではありません。日本株の日中リターンは恒常的に")
+    print("     マイナスで、これはその下押し圧力の強弱を示すものです。")
 
     print("\n【業種シグナルの補足】")
     print(f"  シグナル断面平均 : {mkt:+.4f} (設計上ほぼ 0。市場方向の情報は持ちません)")
@@ -245,7 +248,7 @@ def cmd_predict(a) -> int:
     if a.json:
         payload = {
             "asof_us_close": str(asof.date()),
-            "market_direction": direction,
+            "intraday_bias": direction,
             "market_pred_return": md.get("pred"),
             "signal_mean": mkt,
             "signal_dispersion": disp,

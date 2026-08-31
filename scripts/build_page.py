@@ -61,13 +61,15 @@ def resolve_history(history: list[dict], bundle) -> list[dict]:
             continue
         mkt = float(row.dropna().mean())
         ls = float(row[longs].mean() - row[shorts].mean())
+        # 上下の的中は記録しない。日中リターンは恒常的にマイナスで、符号を
+        # 当てたかどうかは戦略の良し悪しをほとんど表さないため
+        # (詳細は leadlag/direction.py の注記)。実現値そのものを残す。
         rec.update(
             {
                 "resolved": True,
                 "exec_date": str(exec_date.date()),
                 "ls_return": ls,
                 "market_return": mkt,
-                "direction_correct": bool((rec["market_pred"] > 0) == (mkt > 0)),
             }
         )
     return history
@@ -165,6 +167,7 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
             "long": longs,
             "short": shorts,
             "market_pred": float(md["pred"]),
+            "strength": md["strength"],
             "us_ew": float(md["us_ew_cc"]),
             "signals": {t: float(sig[t]) for t in sig.index},
             "resolved": False,
@@ -175,22 +178,26 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
 
     done = [h for h in history if h.get("resolved")]
     recent = done[-60:]
-    cum, acc = [1.0], []
+    cum = [1.0]
+    intraday = []
     for h in recent:
         cum.append(cum[-1] * (1 + h["ls_return"]))
-        acc.append(h["direction_correct"])
-    hit = 100 * sum(acc) / len(acc) if acc else float("nan")
+        intraday.append(h["market_return"])
     ls_total = (cum[-1] - 1) * 100 if len(cum) > 1 else float("nan")
+    intraday_avg = 1e4 * float(np.mean(intraday)) if intraday else float("nan")
 
     vmax = float(np.abs(sig.to_numpy()).max()) or 1.0
     us_z = pd.Series(res.z_us, index=res.us_tickers).sort_values(ascending=False)
-    pred_pct = md["pred"] * 100
-    if abs(pred_pct) < 0.03:          # ほぼ 0 のときに ▼ -0.00% と出さない
-        dir_word, dir_cls, dir_arrow = "ほぼ横ばい", "flat-dir", "－"
-    elif pred_pct > 0:
-        dir_word, dir_cls, dir_arrow = "上昇", "up", "▲"
-    else:
-        dir_word, dir_cls, dir_arrow = "下落", "down", "▼"
+
+    # --- 日中の地合い: 上下の当てものではなく、売り圧力の強弱として見せる ---
+    strength = md["strength"]
+    bias = md["bias"]
+    meter_filled = {"強い": 5, "やや強い": 4, "標準": 3, "やや弱い": 2, "弱い": 1}[strength]
+    meter = "".join(
+        f'<i class="{"on" if k < meter_filled else "off"}"></i>' for k in range(5)
+    )
+    strength_cls = {"強い": "st5", "やや強い": "st4", "標準": "st3",
+                    "やや弱い": "st2", "弱い": "st1"}[strength]
 
     long_rows = "\n".join(row_html(t, sig[t], vmax, "ロング") for t in longs)
     short_rows = "\n".join(row_html(t, sig[t], vmax, "ショート") for t in shorts)
@@ -209,7 +216,8 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         f'      <li class="hrow"><span class="hd">{h["exec_date"][5:]}</span>'
         f'<span class="hv {"pos" if h["ls_return"] >= 0 else "neg"}">'
         f'{h["ls_return"]*100:+.2f}%</span>'
-        f'<span class="hm">{"○" if h["direction_correct"] else "×"}</span></li>'
+        f'<span class="hv {"pos" if h["market_return"] >= 0 else "neg"}">'
+        f'{h["market_return"]*1e4:+.0f}bp</span></li>'
         for h in reversed(recent[-15:])
     )
 
@@ -224,10 +232,14 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     html_doc = PAGE.format(
         asof=asof.date(),
         next_session=next_session,
-        dir_word=dir_word,
-        dir_cls=dir_cls,
-        dir_arrow=dir_arrow,
-        pred_pct=pred_pct,
+        bias=bias,
+        strength=strength,
+        strength_cls=strength_cls,
+        meter=meter,
+        pred_bp=md["pred"] * 1e4,
+        base_bp=md["base_mean"] * 1e4,
+        base_down=md["base_share_down"] * 100,
+        n_train=md["n_train"],
         resid=md["resid_sd"] * 100,
         us_ew=md["us_ew_cc"] * 100,
         long_rows=long_rows,
@@ -236,7 +248,7 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         us_rows=us_rows,
         hist_rows=hist_rows or '<li class="hrow"><span class="hd">まだ履歴がありません</span></li>',
         spark=sparkline(cum) if len(cum) > 2 else "",
-        hit=f"{hit:.0f}%" if acc else "—",
+        intraday_avg=f"{intraday_avg:+.0f}bp" if intraday else "—",
         ls_total=f"{ls_total:+.1f}%" if len(cum) > 1 else "—",
         n_hist=len(recent),
         f_scores=", ".join(f"f{i+1}={v:+.2f}" for i, v in enumerate(res.factor_scores)),
@@ -296,6 +308,18 @@ h1 {{ font-size:15px; font-weight:600; margin:0; color:var(--muted); letter-spac
 .dir .pct {{ font-size:19px; font-weight:600; }}
 .up {{ color:var(--up); }} .down {{ color:var(--down); }}
 .flat-dir {{ color:var(--muted); }}
+.word.bias {{ font-size:34px; }}
+.strengthline {{ display:flex; align-items:baseline; gap:10px; margin-top:8px; }}
+.strengthline .lbl {{ font-size:12px; color:var(--muted); }}
+.strengthline .pct {{ font-size:22px; font-weight:700; }}
+.pct.st5 {{ color:var(--down); }} .pct.st4 {{ color:var(--down); opacity:.85; }}
+.pct.st3 {{ color:var(--muted); }} .pct.st2 {{ color:var(--fg); opacity:.75; }}
+.pct.st1 {{ color:var(--up); }}
+.meter {{ display:flex; gap:5px; margin:12px 0 4px; }}
+.meter i {{ flex:1; height:7px; border-radius:3px; }}
+.meter i.on {{ background:var(--down); }}
+.meter i.off {{ background:var(--line); }}
+.meta.small {{ font-size:12px; margin-top:10px; }}
 .weak {{ font-size:10px; color:var(--muted); border:1px solid var(--line);
   border-radius:4px; padding:0 3px; margin-left:5px; vertical-align:1px; }}
 .meta {{ font-size:13px; color:var(--muted); margin-top:10px; }}
@@ -328,7 +352,7 @@ details[open] > summary::after {{ content:" ⌄"; }}
 .spark {{ width:100%; height:48px; display:block; margin:6px 0 2px; }}
 .sparkline {{ stroke:var(--accent); stroke-width:2; vector-effect:non-scaling-stroke; }}
 .zero {{ stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; }}
-.hrow {{ display:grid; grid-template-columns:56px 1fr 28px; padding:5px 0;
+.hrow {{ display:grid; grid-template-columns:56px 1fr 68px; padding:5px 0;
   font-size:13px; border-bottom:1px solid var(--line); }}
 .hd {{ color:var(--muted); font-variant-numeric:tabular-nums; }}
 .hv {{ text-align:right; font-variant-numeric:tabular-nums; }}
@@ -349,15 +373,27 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 </header>
 
 <section class="card">
-  <h2>市場全体の方向</h2>
+  <h2>日中の地合い</h2>
   <div class="dir">
-    <span class="word {dir_cls}">{dir_arrow} {dir_word}</span>
-    <span class="pct {dir_cls}">{pred_pct:+.2f}%</span>
+    <span class="word bias">{bias}</span>
   </div>
-  <p class="meta">当日の米国11業種 等ウェイト <b>{us_ew:+.2f}%</b> ・
-     予測の残差標準偏差 <b>{resid:.2f}%</b><br>
-     1日先の方向の的中率は現実的に53〜56%程度です。予測値の絶対値は
-     残差標準偏差よりずっと小さいことが普通なので、方向の目安として見てください。</p>
+  <div class="strengthline">
+    <span class="lbl">下押し圧力</span>
+    <span class="pct {strength_cls}">{strength}</span>
+  </div>
+  <div class="meter">{meter}</div>
+  <p class="meta">
+     翌日の東京EW日中の予測 <b>{pred_bp:+.0f}bp</b> ・
+     過去{n_train}営業日の日中平均 <b>{base_bp:+.0f}bp</b>（うち下落 {base_down:.0f}%）・
+     当日の米国11業種 等ウェイト <b>{us_ew:+.2f}%</b>
+  </p>
+  <p class="meta small">
+     日本株のリターンはほぼ夜間（前日大引け→翌日寄付き）に発生し、日中は恒常的に
+     マイナスです。このモデルは上がるか下がるかを当てるものではなく、
+     <b>その下押し圧力が過去と比べて強いか弱いか</b>を見るものです。
+     強弱は過去{n_train}営業日の予測値の分布の五分位で判定しています。
+     「弱い」は上昇に転じるという意味ではありません。
+  </p>
 </section>
 
 <section class="card">
@@ -389,17 +425,20 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   <h2>直近の実績（ロングショート）</h2>
   <div class="stats">
     <div class="stat"><div class="v">{ls_total}</div><div class="k">直近{n_hist}営業日 累積</div></div>
-    <div class="stat"><div class="v">{hit}</div><div class="k">方向の的中率</div></div>
+    <div class="stat"><div class="v">{intraday_avg}</div><div class="k">日中EWの平均<br>（1日あたり）</div></div>
   </div>
   {spark}
   <details>
-    <summary>日別の内訳</summary>
+    <summary>日別の内訳（左=ロングショート、右=日中EW）</summary>
     <ul>
 {hist_rows}
     </ul>
   </details>
   <p class="meta">実際に運用した記録ではなく、毎朝このページが出した予想を
-     その日の実現リターンで後から採点したものです。取引コストは含みません。</p>
+     その日の実現リターンで後から採点したものです。取引コストは含みません。<br>
+     <b>検証メモ:</b> 2015〜2025年の再現では良好でしたが、①片道4.6bpsで損益が消える
+     回転率、②2026年に入っての大幅な悪化、が確認されています。詳細は検証レポートを
+     参照してください。</p>
 </section>
 
 <footer>

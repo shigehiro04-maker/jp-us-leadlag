@@ -91,5 +91,35 @@ def test_latest_direction_returns_finite_prediction():
     bundle, _ = make_bundle(n_days=800, seed=22, rho=0.4)
     res = latest_direction(bundle)
     assert np.isfinite(res["pred"])
-    assert res["direction"] in ("上昇", "下落")
     assert res["asof"] == bundle.dates[-1]
+    assert res["bias"] in ("売り優位", "買い優位")
+    assert res["strength"] in ("強い", "やや強い", "標準", "やや弱い", "弱い")
+    assert res["quantiles"] == sorted(res["quantiles"])
+
+
+def test_strength_label_maps_prediction_onto_past_distribution():
+    """予測がよりマイナス寄りなほど「売り圧力が強い」と読むこと。"""
+    from leadlag.direction import strength_label
+
+    q = [-0.004, -0.002, 0.0, 0.002]
+    assert strength_label(-0.010, q) == "強い"
+    assert strength_label(-0.003, q) == "やや強い"
+    assert strength_label(-0.001, q) == "標準"
+    assert strength_label(0.001, q) == "やや弱い"
+    assert strength_label(0.010, q) == "弱い"
+
+
+def test_bias_reflects_realized_intraday_sign():
+    from leadlag.direction import intraday_bias
+
+    assert intraday_bias(np.array([-0.001, -0.002, 0.0005])) == "売り優位"
+    assert intraday_bias(np.array([0.001, 0.002, -0.0005])) == "買い優位"
+
+
+def test_strength_uses_only_past_data():
+    """強弱の判定に使う分位点が、学習ウィンドウ内の値だけで決まること。"""
+    bundle, _ = make_bundle(n_days=800, seed=24, rho=0.4)
+    res = latest_direction(bundle, window=250)
+    assert res["n_train"] <= 250
+    lo, hi = min(res["quantiles"]), max(res["quantiles"])
+    assert lo < hi

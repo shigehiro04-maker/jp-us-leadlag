@@ -19,9 +19,13 @@
 100 分の 1 程度になる)。これは欠陥ではなく、市場中立なロングショート戦略として
 設計されているということである。
 
-そこで市場全体の方向は、同じリードラグ仮説をそのまま素直に使う別の推定量
+そこで市場全体の地合いは、同じリードラグ仮説をそのまま素直に使う別の推定量
       翌日の東京の日中リターン (等ウェイト)  ~  a + b * 当日の米国リターン (等ウェイト)
-をローリング回帰で推定して予測する。係数は常に過去のデータのみで推定する。
+をローリング回帰で推定する。係数は常に過去のデータのみで推定する。
+
+ただしこの予測値を「上がる/下がる」として読んではいけない (下の注記を参照)。
+東京の日中リターンは恒常的にマイナスなので、正しい読み方は
+「日中は売り優位。その圧力が過去と比べて強いか弱いか」である。
 """
 
 from __future__ import annotations
@@ -158,13 +162,61 @@ def latest_direction(
     x_now = [us_ew.loc[t]] + ([jp_ew_cc.loc[t]] if use_jp_prev else [])
     pred = float(coef @ np.concatenate([[1.0], np.array(x_now)]))
 
-    resid = np.array(ys) - xd @ coef
+    y_arr = np.asarray(ys, dtype=float)
+    fitted = xd @ coef
+    resid = y_arr - fitted
+    q = np.quantile(fitted, [0.2, 0.4, 0.6, 0.8])
+
     return {
         "asof": t,
         "pred": pred,
-        "direction": "上昇" if pred > 0 else "下落",
+        "bias": intraday_bias(y_arr),
+        "strength": strength_label(pred, q),
+        "quantiles": [float(x) for x in q],
+        "base_mean": float(y_arr.mean()),
+        "base_share_down": float((y_arr < 0).mean()),
         "us_ew_cc": float(us_ew.loc[t]),
         "coef": coef.tolist(),
         "resid_sd": float(resid.std(ddof=len(coef))),
         "n_train": len(ys),
     }
+
+
+# ---------------------------------------------------------------------------
+# 「日中は売り優位、その強弱」という読み方
+# ---------------------------------------------------------------------------
+# 実データでの検証で分かったこと:
+#   * 東京の日中 (寄付き→大引け) リターンは恒常的にマイナス。TOPIX-17 等ウェイトで
+#     2015-2026 年の年率は約 -14%。日本株のリターンはほぼ夜間に発生している。
+#   * このモデルの的中率 53% は「上下を当てている」のではなく、その恒常的な
+#     マイナスを拾っているだけ。実際、常に売り持ちするほうが成績が良い
+#     (R/R 1.40 対 1.24)。上昇予想の日の実現リターンも平均 -1.2bp とマイナス。
+#   * ただし予測値には情報がある。下落予想の日は平均 -7.7bp、上昇予想の日は
+#     -1.2bp と、6bp 以上の差がついている。
+# したがって上下の当てものとして見せるのは誤りで、「日中は売り優位」を前提に
+# その圧力の強弱として読むのが正しい。
+# ---------------------------------------------------------------------------
+
+STRENGTH_LABELS = ["強い", "やや強い", "標準", "やや弱い", "弱い"]
+
+
+def intraday_bias(realized: np.ndarray) -> str:
+    """学習期間の実績から、日中の地合いが売り優位かどうかを判定する。"""
+    return "売り優位" if float(np.mean(realized)) < 0 else "買い優位"
+
+
+def strength_label(pred: float, quantiles) -> str:
+    """予測値が過去の分布のどこにあるかで、下押し圧力の強弱を表す。
+
+    予測が小さい (よりマイナス寄り) ほど売り圧力が強い、と読む。
+    """
+    q20, q40, q60, q80 = quantiles
+    if pred <= q20:
+        return STRENGTH_LABELS[0]
+    if pred <= q40:
+        return STRENGTH_LABELS[1]
+    if pred <= q60:
+        return STRENGTH_LABELS[2]
+    if pred <= q80:
+        return STRENGTH_LABELS[3]
+    return STRENGTH_LABELS[4]

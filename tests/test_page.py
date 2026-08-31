@@ -283,3 +283,66 @@ def test_warns_when_target_session_already_passed(tmp_path):
     assert "Date.parse(" in doc
     # 対象日が埋め込まれていること
     assert re.search(r'var target = Date\.parse\("\d{4}-\d{2}-\d{2}T00:00:00\+09:00"\)', doc)
+
+
+# ---------------------------------------------------------------------------
+# 採点は日本の営業日基準
+# ---------------------------------------------------------------------------
+def test_scoring_does_not_wait_for_us_data(tmp_path):
+    """米国側の配信が遅れていても、日本の実現値が揃えば採点できること。
+
+    採点に要るのは日本の寄付きと大引けだけ。共通営業日を基準にしていると
+    米国待ちで実績が止まるため、日本の営業日で執行日を決める。
+    """
+    import copy
+
+    bundle, _ = make_bundle(n_days=420, seed=81, rho=0.4)
+    last = bundle.dates[-1]
+    prev = bundle.dates[-2]
+
+    # 米国だけ最終日が届いていない状態を作る (共通営業日は prev までになる)
+    lagging = copy.deepcopy(bundle)
+    lagging.jp_oc_all = bundle.jp_oc                       # 日本は最終日まである
+    for attr in ("us_cc", "jp_cc", "jp_oc", "us_close", "jp_close", "jp_open"):
+        setattr(lagging, attr, getattr(bundle, attr).iloc[:-1])
+    assert lagging.dates[-1] == prev
+
+    hist = [{"asof": str(prev.date()), "long": ["1617.T", "1618.T"],
+             "short": ["1630.T", "1631.T"], "market_pred": 0.0, "resolved": False}]
+    out = resolve_history(hist, lagging)
+
+    assert out[0]["resolved"] is True, "米国待ちで採点が止まっている"
+    assert out[0]["exec_date"] == str(last.date())
+
+    row = bundle.jp_oc.loc[last]
+    expected = row[["1617.T", "1618.T"]].mean() - row[["1630.T", "1631.T"]].mean()
+    assert abs(out[0]["ls_return"] - expected) < 1e-12
+
+
+def test_scoring_skips_days_tokyo_was_closed(tmp_path):
+    """東京が休場だった日は執行日にせず、次の立会日を使うこと。"""
+    import copy
+
+    bundle, _ = make_bundle(n_days=420, seed=82, rho=0.4)
+    trimmed = copy.deepcopy(bundle)
+    # 東京の営業日から 1 日抜く (祝日に相当)
+    holiday = bundle.dates[-3]
+    trimmed.jp_oc_all = bundle.jp_oc.drop(index=holiday)
+
+    asof = bundle.dates[-4]
+    hist = [{"asof": str(asof.date()), "long": ["1617.T"], "short": ["1630.T"],
+             "market_pred": 0.0, "resolved": False}]
+    out = resolve_history(hist, trimmed)
+
+    assert out[0]["resolved"] is True
+    assert out[0]["exec_date"] != str(holiday.date())
+    assert out[0]["exec_date"] == str(bundle.dates[-2].date())
+
+
+def test_scoring_still_waits_for_the_tokyo_session(tmp_path):
+    """日本の実現値がまだ無い予想は採点しないこと。"""
+    bundle, _ = make_bundle(n_days=400, seed=83, rho=0.4)
+    last = str(bundle.dates[-1].date())
+    hist = [{"asof": last, "long": ["1617.T"], "short": ["1630.T"],
+             "market_pred": 0.0, "resolved": False}]
+    assert not resolve_history(hist, bundle)[0].get("resolved")

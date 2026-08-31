@@ -47,8 +47,18 @@ def load_history(path: Path) -> list[dict]:
 
 
 def resolve_history(history: list[dict], bundle) -> list[dict]:
-    """執行日のデータが揃った過去の予測に、実現結果を書き込む。"""
-    dates = bundle.dates
+    """執行日のデータが揃った過去の予測に、実現結果を書き込む。
+
+    執行日は「基準日より後の最初の東京立会日」。判定に日米共通営業日ではなく
+    日本の営業日を使うのは、採点に要るのが日本の寄付きと大引けだけだからで、
+    同じ日の米国データを待つ理由がない。共通営業日で見ていると米国側の配信が
+    遅れた日に採点が止まる。日本が休場で米国だけ開いていた日も正しく飛ばせる。
+
+    なお、これは日々の採点だけの話。バックテスト側は論文の定義どおり
+    共通営業日のままにしてある。
+    """
+    jp_oc = bundle.jp_oc_all if bundle.jp_oc_all is not None else bundle.jp_oc
+    dates = jp_oc.index
     for rec in history:
         if rec.get("resolved"):
             continue
@@ -57,7 +67,7 @@ def resolve_history(history: list[dict], bundle) -> list[dict]:
         if len(later) == 0:
             continue
         exec_date = later[0]
-        row = bundle.jp_oc.loc[exec_date]
+        row = jp_oc.loc[exec_date]
         longs = [t for t in rec["long"] if t in row.index and np.isfinite(row[t])]
         shorts = [t for t in rec["short"] if t in row.index and np.isfinite(row[t])]
         if not longs or not shorts:

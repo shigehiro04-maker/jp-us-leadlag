@@ -73,6 +73,11 @@ class DataBundle:
     # 日本の当日ぶんをまだ配信していない朝でも、米国の最新終値だけは先に届く。
     # その 1 日を捨てると予測が 1 営業日遅れるため、別に持っておく。
     us_cc_ahead: pd.DataFrame | None = None
+    # 共通営業日に絞る前の、日本の open-to-close リターン (全東証営業日)。
+    # 過去の予想を採点するのに要るのは日本の寄付きと大引けだけで、同じ日の
+    # 米国データは要らない。共通営業日を待つと米国側の配信遅れで採点が
+    # 止まってしまうため、採点にはこちらを使う。
+    jp_oc_all: pd.DataFrame | None = None
     # 異常値として除去したリターンの一覧 (kind, date, ticker, value)
     quality_report: pd.DataFrame | None = None
 
@@ -230,6 +235,7 @@ def build_bundle(
         jp_last_raw=jp_close.index[-1] if len(jp_close) else None,
         us_cc_ahead=(us_cc_full.loc[us_cc_full.index > common[-1]]
                      if len(common) else us_cc_full),
+        jp_oc_all=jp_oc_full,
         quality_report=quality,
     )
 

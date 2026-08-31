@@ -16,6 +16,10 @@ on:
         description: "K の候補 (カンマ区切り)"
         required: false
         default: "2,3,4,5"
+      data_only:
+        description: "データの取得状況だけ調べる (true/false)"
+        required: false
+        default: "false"
 
 permissions:
   contents: write
@@ -51,7 +55,8 @@ jobs:
             --outdir results \
             --backtest-start "${{ inputs.backtest_start }}" \
             --sweep-lams "${{ inputs.sweep_lams }}" \
-            --sweep-ks "${{ inputs.sweep_ks }}" 2>&1 | tee results/run.log
+            --sweep-ks "${{ inputs.sweep_ks }}" \
+            ${{ inputs.data_only == 'true' && '--data-only' || '' }} 2>&1 | tee results/run.log
 
       - name: 結果をコミット
         run: |

@@ -55,6 +55,24 @@ def _log(msg: str) -> None:
     print(f"[{time.strftime('%H:%M:%S')}] {msg}", flush=True)
 
 
+def data_coverage(us_panel: pd.DataFrame, jp_panel: pd.DataFrame) -> pd.DataFrame:
+    """月ごとに、各市場で実際に値が入っている日数を数える。
+
+    無料データはある期間だけまるごと欠けることがあり、そのまま共通営業日を
+    取ると評価期間に穴が空く。穴の前後で推定ウィンドウが不連続な日付を
+    またぐため、気づかないと結果が歪む。
+    """
+    def _count(panel: pd.DataFrame) -> pd.Series:
+        close = panel.loc[:, [c for c in panel.columns if c[1] == "Close"]]
+        has = close.notna().any(axis=1)
+        return has.groupby([has.index.year, has.index.month]).sum()
+
+    us, jp = _count(us_panel), _count(jp_panel)
+    df = pd.DataFrame({"us": us, "jp": jp}).fillna(0).astype(int)
+    df.index = [f"{y}-{m:02d}" for y, m in df.index]
+    return df
+
+
 def yearly_table(returns: dict[str, pd.Series]) -> pd.DataFrame:
     rows = {}
     for name, r in returns.items():
@@ -73,6 +91,8 @@ def main() -> int:
     ap.add_argument("--synthetic", type=int, default=0)
     ap.add_argument("--sweep-lams", default="0,0.3,0.5,0.7,0.9,0.95,1.0")
     ap.add_argument("--sweep-ks", default="2,3,4,5")
+    ap.add_argument("--data-only", action="store_true",
+                    help="データの取得状況だけを調べて終了する（短時間）")
     a = ap.parse_args()
     if not a.backtest_start:          # ワークフローから空文字で渡ってくる場合
         a.backtest_start = None
@@ -87,8 +107,29 @@ def main() -> int:
         base_kwargs = dict(prior_mode="expanding", prior_min_obs=300)
     else:
         _log("価格データを取得中…")
-        bundle = load_bundle(start=a.start, cache_dir=a.cache, refresh=True)
+        from leadlag.data import build_bundle, load_prices
+
+        us_panel, jp_panel = load_prices(start=a.start, cache_dir=a.cache, refresh=True)
+        coverage = data_coverage(us_panel, jp_panel)
+        coverage.to_csv(out / "data_coverage.csv")
+        gaps = coverage[(coverage["us"] == 0) | (coverage["jp"] == 0)]
+        if len(gaps):
+            _log(f"⚠ 片方の市場のデータが 1 日も無い月が {len(gaps)} 件あります:")
+            print(gaps.to_string(), flush=True)
+        bundle = build_bundle(us_panel, jp_panel)
         base_kwargs = dict(prior_mode="fixed")
+
+        common = pd.Series(1, index=bundle.dates)
+        gap_days = bundle.dates.to_series().diff().dt.days
+        big = gap_days[gap_days > 10]
+        if len(big):
+            _log(f"⚠ 共通営業日が {len(big)} 箇所で 10 日以上飛んでいます:")
+            for dt, n in big.items():
+                _log(f"   {dt.date()} の直前に {int(n)} 日の空白")
+
+        if a.data_only:
+            _log("--data-only のためここで終了します")
+            return 0
     _log(f"共通営業日 {len(bundle.dates)} 日 "
          f"({bundle.dates[0].date()} 〜 {bundle.dates[-1].date()})")
 

@@ -25,6 +25,36 @@ from .config import JP_TICKERS, US_TICKERS
 DEFAULT_CACHE = Path(os.environ.get("LEADLAG_CACHE", "./data"))
 
 
+def sanitize_returns(
+    df: pd.DataFrame, max_abs: float = 0.5, label: str = ""
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """異常なリターンを NaN にし、取り除いた点の一覧を返す。
+
+    ETF の日次リターンが ±50% を超えることは実質的にあり得ず、無料データでは
+    株式分割・分配の調整漏れや誤った気配値がそのまま入ってくることがある。
+    1 点でも残ると、その後 60 営業日ぶんの標準偏差と相関が壊れ、さらに
+    その日にポジションを持っていれば損益そのものが架空の値になる。
+
+    銘柄まるごとではなく該当日だけを NaN にする。推定ウィンドウが NaN を
+    含む銘柄はエンジン側が自動的に除外するので、異常値の周辺だけ
+    その銘柄がユニバースから外れる（保守的で望ましい挙動）。
+    """
+    bad = df.abs() > max_abs
+    rows = []
+    if bad.to_numpy().any():
+        idx = np.where(bad.to_numpy())
+        for i, j in zip(*idx):
+            rows.append(
+                {
+                    "kind": label,
+                    "date": df.index[i],
+                    "ticker": df.columns[j],
+                    "value": float(df.iat[i, j]),
+                }
+            )
+    return df.mask(bad), pd.DataFrame(rows)
+
+
 @dataclass
 class DataBundle:
     """日米共通営業日にそろえたリターン行列。"""
@@ -39,6 +69,8 @@ class DataBundle:
     # 提供元の更新遅れ（片方だけ当日ぶんが無い状態）を見分けるために持つ。
     us_last_raw: pd.Timestamp | None = None
     jp_last_raw: pd.Timestamp | None = None
+    # 異常値として除去したリターンの一覧 (kind, date, ticker, value)
+    quality_report: pd.DataFrame | None = None
 
     @property
     def dates(self) -> pd.DatetimeIndex:
@@ -145,7 +177,11 @@ def load_prices(
 # ---------------------------------------------------------------------------
 # リターン構成
 # ---------------------------------------------------------------------------
-def build_bundle(us_panel: pd.DataFrame, jp_panel: pd.DataFrame) -> DataBundle:
+def build_bundle(
+    us_panel: pd.DataFrame,
+    jp_panel: pd.DataFrame,
+    max_abs_return: float = 0.5,
+) -> DataBundle:
     """Open/Close パネルから日米共通営業日のリターン行列を作る。"""
     us_tk = sorted({c[0] for c in us_panel.columns})
     jp_tk = sorted({c[0] for c in jp_panel.columns})
@@ -170,6 +206,12 @@ def build_bundle(us_panel: pd.DataFrame, jp_panel: pd.DataFrame) -> DataBundle:
     jp_cc_full = jp_close.pct_change()
     jp_oc_full = jp_close / jp_open - 1.0
 
+    # 無料データに混じる異常値を取り除く（詳細は sanitize_returns を参照）
+    us_cc_full, q1 = sanitize_returns(us_cc_full, max_abs_return, "us_cc")
+    jp_cc_full, q2 = sanitize_returns(jp_cc_full, max_abs_return, "jp_cc")
+    jp_oc_full, q3 = sanitize_returns(jp_oc_full, max_abs_return, "jp_oc")
+    quality = pd.concat([q1, q2, q3], ignore_index=True)
+
     common = us_close.index.intersection(jp_close.index)
     common = common.sort_values()
 
@@ -182,6 +224,7 @@ def build_bundle(us_panel: pd.DataFrame, jp_panel: pd.DataFrame) -> DataBundle:
         jp_open=jp_open.loc[common],
         us_last_raw=us_close.index[-1] if len(us_close) else None,
         jp_last_raw=jp_close.index[-1] if len(jp_close) else None,
+        quality_report=quality,
     )
 
 

@@ -94,6 +94,15 @@ def main() -> int:
 
     bundle.summary().to_csv(out / "universe_stats.csv")
 
+    q = bundle.quality_report
+    if q is not None and len(q):
+        q.to_csv(out / "data_quality.csv", index=False)
+        _log(f"異常値として除去したリターン {len(q)} 件:")
+        print(q.to_string(), flush=True)
+    else:
+        (out / "data_quality.csv").write_text("kind,date,ticker,value\n")
+        _log("異常値なし")
+
     base = Params(backtest_start=a.backtest_start, **base_kwargs)
 
     # ---------------- 本体（論文の設定） ----------------
@@ -227,6 +236,33 @@ def main() -> int:
         "",
         "## 回転率（1日あたり Σ|Δw|、グロス2倍のポートフォリオ）",
         "", turn.describe().round(3).to_markdown(), "",
+        "## 除去した異常値",
+        "",
+        (q.to_markdown(index=False) if q is not None and len(q) else "なし"),
+        "",
+        "## 期間を区切った PCA_SUB",
+        "",
+        pd.DataFrame(
+            {
+                lab: {
+                    "AR": annual_return(s, base.ann_factor) * 100,
+                    "RISK": annual_risk(s, base.ann_factor) * 100,
+                    "R/R": risk_return(s, base.ann_factor),
+                    "MDD": max_drawdown(s),
+                    "N": len(s),
+                }
+                for lab, s in {
+                    "全期間": strat["PCA_SUB"],
+                    "論文の標本内 (〜2025)": strat["PCA_SUB"][
+                        strat["PCA_SUB"].index < "2026-01-01"
+                    ],
+                    "標本外 (2026〜)": strat["PCA_SUB"][
+                        strat["PCA_SUB"].index >= "2026-01-01"
+                    ],
+                }.items()
+            }
+        ).T.round(2).to_markdown(),
+        "",
     ]
     (out / "REPORT.md").write_text("\n".join(md), encoding="utf-8")
 

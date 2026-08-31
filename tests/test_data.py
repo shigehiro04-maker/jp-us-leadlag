@@ -98,3 +98,38 @@ def test_latest_raises_when_too_many_days_missing():
     with pytest.raises(RuntimeError, match="不足"):
         LeadLagEngine(broken, Params(window=60, prior_mode="expanding",
                                      prior_min_obs=300)).latest(max_lookback=5)
+
+
+def test_corrupt_price_spike_is_removed():
+    """無料データに混じる異常なリターンが除去され、記録されること。
+
+    実運用で 1629.T の年率リターンが 3339% と表示される破損に遭遇したため、
+    その回帰テスト。
+    """
+    dates = pd.bdate_range("2024-01-01", periods=120)
+    us = _panels(dates, ["XLB", "XLE", "XLF"], seed=11)
+    jp = _panels(dates, ["1617.T", "1618.T", "1629.T"], seed=12)
+
+    # 1629.T に「分割の調整漏れ」相当の跳ねを入れる
+    jp.loc[dates[60], ("1629.T", "Close")] *= 10.0
+    jp.loc[dates[60], ("1629.T", "Open")] *= 10.0
+
+    bundle = build_bundle(jp_panel=jp, us_panel=us)
+    q = bundle.quality_report
+    assert len(q) >= 2                                  # 跳ねと戻りの両方
+    assert set(q["ticker"]) == {"1629.T"}
+    assert not np.isfinite(bundle.jp_cc.loc[dates[60], "1629.T"])
+
+    # 健全な銘柄には手を付けない
+    assert bundle.jp_cc["1617.T"].notna().sum() == len(dates) - 1
+    # 年率リターンが常識的な範囲に収まること
+    assert abs(bundle.summary().loc["1629.T", "Ret(%)"]) < 200
+
+
+def test_sanitize_keeps_large_but_plausible_moves():
+    from leadlag.data import sanitize_returns
+
+    df = pd.DataFrame({"A": [0.0, -0.35, 0.40, 0.0]})
+    cleaned, rep = sanitize_returns(df, max_abs=0.5, label="t")
+    assert cleaned.notna().all().all()      # ±40% は残す
+    assert rep.empty

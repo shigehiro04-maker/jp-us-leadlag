@@ -187,3 +187,86 @@ def test_signal_tolerates_nan_in_window():
                          c_full, lam=0.9, n_factors=3)
     assert np.isfinite(res.scores).all()
     assert np.isfinite(res.b_matrix).all()
+
+
+# ---------------------------------------------------------------------------
+# 米国だけ先に届いている朝への対応
+# ---------------------------------------------------------------------------
+def test_us_ahead_row_is_kept_separately():
+    """日本の当日バーが未着でも、米国の最新終値を捨てないこと。"""
+    dates = pd.bdate_range("2024-01-01", periods=200)
+    us = _panels(dates, ["XLB", "XLE", "XLF"], seed=21)
+    jp = _panels(dates.delete(-1), ["1617.T", "1618.T", "1619.T"], seed=22)
+
+    bundle = build_bundle(us, jp)
+    assert bundle.dates[-1] == dates[-2]                 # 共通営業日は前日まで
+    assert bundle.us_cc_ahead is not None
+    assert list(bundle.us_cc_ahead.index) == [dates[-1]]
+    assert bundle.us_cc_ahead.notna().all(axis=1).iloc[0]
+
+
+def test_latest_uses_the_newer_us_close():
+    """米国が先行している日を基準日にして、1営業日の遅れを出さないこと。
+
+    実運用で、日本のデータ待ちのせいで「すでに終わった立会日」の予想を
+    出し続ける状態になったため、その回帰テスト。
+    """
+    bundle, _ = make_bundle(n_days=700, seed=61, rho=0.4)
+    params = Params(window=60, prior_mode="expanding", prior_min_obs=300)
+
+    baseline_asof, _ = LeadLagEngine(bundle, params).latest()
+    assert baseline_asof == bundle.dates[-1]
+
+    # 日本側の最終日だけ落とし、米国が 1 日先行している状態を作る
+    import copy
+
+    ahead = copy.deepcopy(bundle)
+    last = bundle.dates[-1]
+    ahead.us_cc_ahead = bundle.us_cc.loc[[last]]
+    for attr in ("us_cc", "jp_cc", "jp_oc", "us_close", "jp_close", "jp_open"):
+        setattr(ahead, attr, getattr(bundle, attr).iloc[:-1])
+
+    asof, res = LeadLagEngine(ahead, params).latest()
+    assert asof == last, "米国が先行している日を使えていない"
+    assert np.isfinite(res.scores).all()
+    assert len(res.jp_tickers) >= 6
+
+
+def test_latest_ahead_needs_enough_us_names():
+    """先行している米国の行がスカスカなら使わず、共通営業日に戻ること。"""
+    bundle, _ = make_bundle(n_days=700, seed=62, rho=0.4)
+    params = Params(window=60, prior_mode="expanding", prior_min_obs=300)
+
+    import copy
+
+    ahead = copy.deepcopy(bundle)
+    last = bundle.dates[-1]
+    row = bundle.us_cc.loc[[last]].copy()
+    row.iloc[0, 2:] = np.nan                 # 2 銘柄しか値が無い
+    ahead.us_cc_ahead = row
+    for attr in ("us_cc", "jp_cc", "jp_oc", "us_close", "jp_close", "jp_open"):
+        setattr(ahead, attr, getattr(bundle, attr).iloc[:-1])
+
+    asof, _ = LeadLagEngine(ahead, params).latest()
+    assert asof == ahead.dates[-1]           # 先行日は使わない
+
+
+def test_direction_handles_us_ahead_day():
+    """方向モデルも先行日を使えること (東京の当日バーが無いので米国のみで組む)。"""
+    from leadlag.direction import latest_direction
+
+    bundle, _ = make_bundle(n_days=800, seed=63, rho=0.4)
+    import copy
+
+    ahead = copy.deepcopy(bundle)
+    last = bundle.dates[-1]
+    ahead.us_cc_ahead = bundle.us_cc.loc[[last]]
+    for attr in ("us_cc", "jp_cc", "jp_oc", "us_close", "jp_close", "jp_open"):
+        setattr(ahead, attr, getattr(bundle, attr).iloc[:-1])
+
+    res = latest_direction(ahead, asof=last)
+    assert res["asof"] == last
+    assert np.isfinite(res["pred"])
+    assert res["strength"] in ("強い", "やや強い", "標準", "やや弱い", "弱い")
+    # 説明変数は米国のみ (定数 + 米国EW の 2 つ)
+    assert len(res["coef"]) == 2

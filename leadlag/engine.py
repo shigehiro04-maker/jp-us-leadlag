@@ -244,16 +244,64 @@ class LeadLagEngine:
             )
         return panel
 
+    def _latest_ahead(self):
+        """共通営業日より後に米国だけ届いている日があれば、それを使う。
+
+        ウィンドウは共通営業日の末尾 L 日ぶん。日本の当日バーは
+        相関の推定にも執行にも要らない (執行は次の東京立会日) ので、
+        欠けていても予測は出せる。
+        """
+        p = self.p
+        L = p.window
+        ahead = self.bundle.us_cc_ahead
+        if ahead is None or ahead.empty or len(self.dates) <= L:
+            return None
+
+        win = self.returns.iloc[-L:]
+        jp_ok = [t for t in self.jp_tickers if self._covered(win, t)]
+        if len(jp_ok) < p.min_names:
+            return None
+
+        for ts in reversed(ahead.index):
+            row = ahead.loc[ts]
+            us_ok = [t for t in self.us_tickers
+                     if self._covered(win, t) and t in row.index
+                     and np.isfinite(row[t])]
+            if len(us_ok) < p.min_names:
+                continue
+            cf = self.c_full_at(len(self.dates) - 1).loc[
+                us_ok + jp_ok, us_ok + jp_ok
+            ].to_numpy()
+            res = compute_signal(
+                win[us_ok].to_numpy(),
+                win[jp_ok].to_numpy(),
+                row[us_ok].to_numpy(),
+                us_ok, jp_ok, cf,
+                lam=p.lam, n_factors=p.n_factors,
+            )
+            return ts, res
+        return None
+
     # -- 最新 1 日分だけ (日次予測用) --------------------------------------
     def latest(self, max_lookback: int = 5):
         """最新の米国終値に基づく翌営業日シグナルを返す。
 
-        データ提供元が当日ぶんをまだ埋めていないことがあるので、末尾から
-        最大 max_lookback 営業日さかのぼり、米国側が十分そろっている
-        直近の日を使う。返り値の日付でどの終値を使ったか分かる。
+        2 つのずれに対応する。
+
+        1. 提供元が米国の当日ぶんをまだ埋めていない場合は、末尾から最大
+           max_lookback 営業日さかのぼって使える日を探す。
+        2. 逆に、米国だけ先に届いて日本の当日ぶんが未着の場合。米国は日本より
+           後に引けるので朝はこの状態になりやすい。共通営業日だけを見ていると
+           基準日が進まず、すでに終わった立会日の予想を出し続けてしまうため、
+           推定ウィンドウは共通営業日から取りつつ、当日ショックだけ先行して
+           届いている米国リターンを使う。
         """
         p = self.p
         L = p.window
+
+        ahead = self._latest_ahead()
+        if ahead is not None:
+            return ahead
 
         i = None
         for back in range(max_lookback + 1):

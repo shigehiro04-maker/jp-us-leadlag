@@ -325,6 +325,7 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         f_scores=", ".join(f"f{i+1}={v:+.2f}" for i, v in enumerate(res.factor_scores)),
         generated=generated,
         asof_iso=asof.date().isoformat(),
+        next_iso=next_session.isoformat(),
         us_last=us_last,
         jp_last=jp_last,
         holdings_src=holdings_src,
@@ -566,10 +567,22 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
     a.addEventListener("click", function (e) {{ e.stopPropagation(); }});
   }});
 
+  var el = document.getElementById("stale");
   var asof = new Date("{asof_iso}T21:00:00Z");
   var days = (Date.now() - asof.getTime()) / 86400000;
-  if (days > 4) {{
-    var el = document.getElementById("stale");
+
+  // 対象の立会日がすでに過ぎているときは、その旨をはっきり出す。
+  // 提供元のデータ待ちで基準日が進まないことがあり、黙っていると
+  // 終わった立会日の予想をそのまま見てしまう。
+  var target = Date.parse("{next_iso}T00:00:00+09:00");
+  var jstNow = new Date(Date.now() + 9 * 3600000);
+  var jstMidnight = Date.UTC(jstNow.getUTCFullYear(), jstNow.getUTCMonth(),
+                             jstNow.getUTCDate()) - 9 * 3600000;
+  if (target < jstMidnight) {{
+    el.textContent = "⚠ この予想の対象は {next_session}（すでに終わった立会日）です。"
+      + "取得元のデータ待ちで基準日が進んでいません。";
+    el.style.display = "block";
+  }} else if (days > 4) {{
     el.textContent = "⚠ このページは " + Math.floor(days) +
       " 日前のデータです。自動更新が止まっている可能性があります。";
     el.style.display = "block";

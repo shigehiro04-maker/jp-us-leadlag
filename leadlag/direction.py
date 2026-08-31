@@ -133,15 +133,26 @@ def latest_direction(
     jp_ew_oc = bundle.jp_oc.mean(axis=1, skipna=True)
     jp_ew_cc = bundle.jp_cc.mean(axis=1, skipna=True)
 
+    # 米国だけ先に届いている日を基準にする場合。日本の当日バーが無いので
+    # 「前日の東京」の説明変数は使えない。米国リターンだけで組み直す。
+    x_ahead = None
+    if asof is not None and (len(us_ew) == 0 or pd.Timestamp(asof) > us_ew.index[-1]):
+        ahead = getattr(bundle, "us_cc_ahead", None)
+        if ahead is None or pd.Timestamp(asof) not in ahead.index:
+            raise RuntimeError("指定された基準日の米国データがありません")
+        x_ahead = float(ahead.loc[pd.Timestamp(asof)].mean(skipna=True))
+        use_jp_prev = False
+
     dates = us_ew.index
-    if asof is not None:
+    if asof is not None and x_ahead is None:
         pos = dates.searchsorted(pd.Timestamp(asof), side="right") - 1
         if pos < 0:
             raise RuntimeError("指定された基準日より前の米国データがありません")
         dates = dates[: pos + 1]
-    t = dates[-1]
+    t = dates[-1] if x_ahead is None else pd.Timestamp(asof)
 
-    # 学習データ: (t' の米国, t'+1 の東京) のペアを過去から作る
+    # 学習データ: (t' の米国, t'+1 の東京) のペアを過去から作る。
+    # 基準日が共通営業日より先の場合も、学習は共通営業日の範囲で行う。
     xs, ys = [], []
     for k in range(max(0, len(dates) - window - 1), len(dates) - 1):
         d0, d1 = dates[k], dates[k + 1]
@@ -159,7 +170,10 @@ def latest_direction(
     xd = np.column_stack([np.ones(len(xs)), np.array(xs)])
     coef, *_ = np.linalg.lstsq(xd, np.array(ys), rcond=None)
 
-    x_now = [us_ew.loc[t]] + ([jp_ew_cc.loc[t]] if use_jp_prev else [])
+    if x_ahead is not None:
+        x_now = [x_ahead]
+    else:
+        x_now = [us_ew.loc[t]] + ([jp_ew_cc.loc[t]] if use_jp_prev else [])
     pred = float(coef @ np.concatenate([[1.0], np.array(x_now)]))
 
     y_arr = np.asarray(ys, dtype=float)
@@ -175,7 +189,7 @@ def latest_direction(
         "quantiles": [float(x) for x in q],
         "base_mean": float(y_arr.mean()),
         "base_share_down": float((y_arr < 0).mean()),
-        "us_ew_cc": float(us_ew.loc[t]),
+        "us_ew_cc": float(x_ahead if x_ahead is not None else us_ew.loc[t]),
         "coef": coef.tolist(),
         "resid_sd": float(resid.std(ddof=len(coef))),
         "n_train": len(ys),

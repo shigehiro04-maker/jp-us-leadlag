@@ -271,3 +271,15 @@ def test_etf_code_link_keeps_its_label(page_with_holdings):
     """ETFコードだけの表示ではリンク先が分からないので、こちらには残す。"""
     assert 'class="tk etflink"' in page_with_holdings
     assert "をYahoo!ファイナンスで見る" in page_with_holdings
+
+
+def test_warns_when_target_session_already_passed(tmp_path):
+    """対象の立会日がすでに過ぎているときに警告を出す仕組みがあること。"""
+    full, _ = make_bundle(n_days=420, seed=71, rho=0.4)
+    params = Params(prior_mode="expanding", prior_min_obs=300)
+    build(tmp_path, params, "./data", bundle=full, holdings={})
+    doc = (tmp_path / "index.html").read_text()
+    assert "すでに終わった立会日" in doc
+    assert "Date.parse(" in doc
+    # 対象日が埋め込まれていること
+    assert re.search(r'var target = Date\.parse\("\d{4}-\d{2}-\d{2}T00:00:00\+09:00"\)', doc)

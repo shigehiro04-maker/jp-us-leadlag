@@ -69,6 +69,10 @@ class DataBundle:
     # 提供元の更新遅れ（片方だけ当日ぶんが無い状態）を見分けるために持つ。
     us_last_raw: pd.Timestamp | None = None
     jp_last_raw: pd.Timestamp | None = None
+    # 共通営業日より後の米国リターン。米国は日本より後に引けるので、提供元が
+    # 日本の当日ぶんをまだ配信していない朝でも、米国の最新終値だけは先に届く。
+    # その 1 日を捨てると予測が 1 営業日遅れるため、別に持っておく。
+    us_cc_ahead: pd.DataFrame | None = None
     # 異常値として除去したリターンの一覧 (kind, date, ticker, value)
     quality_report: pd.DataFrame | None = None
 
@@ -224,6 +228,8 @@ def build_bundle(
         jp_open=jp_open.loc[common],
         us_last_raw=us_close.index[-1] if len(us_close) else None,
         jp_last_raw=jp_close.index[-1] if len(jp_close) else None,
+        us_cc_ahead=(us_cc_full.loc[us_cc_full.index > common[-1]]
+                     if len(common) else us_cc_full),
         quality_report=quality,
     )
 

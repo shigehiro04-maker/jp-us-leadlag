@@ -121,3 +121,78 @@ def test_resolve_skips_records_without_execution_data():
 def test_sparkline_is_valid_svg():
     assert sparkline([1.0, 1.02, 0.99, 1.05]).startswith("<svg")
     assert sparkline([1.0]) == ""
+
+
+# ---------------------------------------------------------------------------
+# 業種ETFの構成銘柄の表示
+# ---------------------------------------------------------------------------
+def _fake_holdings(n: int = 25, stale: bool = False) -> dict:
+    from leadlag.config import JP_TICKERS
+
+    out = {}
+    for t in JP_TICKERS:
+        rows = [{"code": f"{1300 + i}", "name": f"銘柄{i}", "weight": (n - i) / n * 100}
+                for i in range(n)]
+        rec = {"ticker": t, "fund_code": t[:4], "as_of": "2026年7月31日",
+               "n": n, "holdings": rows, "error": None}
+        if stale:
+            rec["stale"] = True
+        out[t] = rec
+    return out
+
+
+@pytest.fixture(scope="module")
+def page_with_holdings(tmp_path_factory):
+    out = tmp_path_factory.mktemp("hold")
+    full, _ = make_bundle(n_days=420, seed=51, rho=0.4)
+    params = Params(prior_mode="expanding", prior_min_obs=300)
+    build(out, params, "./data", bundle=full, holdings=_fake_holdings())
+    return (out / "index.html").read_text()
+
+
+def test_shows_top_ten_holdings_and_collapses_the_rest(page_with_holdings):
+    doc = page_with_holdings
+    assert "銘柄0" in doc and "銘柄9" in doc          # 上位10件は展開済み
+    assert "残り15銘柄" in doc                        # 残りは折りたたみ
+    assert "全25銘柄" in doc
+    assert "2026年7月31日現在" in doc
+
+
+def test_every_sector_row_is_expandable(page_with_holdings):
+    from leadlag.config import JP_TICKERS
+
+    doc = page_with_holdings
+    assert doc.count('<summary class="rowsum">') == len(JP_TICKERS)
+    assert doc.count('class="holdings"') == len(JP_TICKERS)
+
+
+def test_weights_are_rendered_as_percent(page_with_holdings):
+    assert "100.00%" in page_with_holdings          # 先頭銘柄 (25/25)
+
+
+def test_missing_holdings_degrade_gracefully(tmp_path):
+    full, _ = make_bundle(n_days=420, seed=52, rho=0.4)
+    params = Params(prior_mode="expanding", prior_min_obs=300)
+    build(tmp_path, params, "./data", bundle=full, holdings={})
+    doc = (tmp_path / "index.html").read_text()
+    assert "構成銘柄を取得できませんでした" in doc
+    assert "業種ランキング" in doc                    # ページ自体は壊れない
+
+
+def test_stale_holdings_are_flagged(tmp_path):
+    full, _ = make_bundle(n_days=420, seed=53, rho=0.4)
+    params = Params(prior_mode="expanding", prior_min_obs=300)
+    build(tmp_path, params, "./data", bundle=full,
+          holdings=_fake_holdings(n=12, stale=True))
+    doc = (tmp_path / "index.html").read_text()
+    assert "前回取得ぶん" in doc
+
+
+def test_holdings_page_is_still_self_contained(page_with_holdings):
+    body = page_with_holdings.replace("http://www.w3.org/2000/svg", "")
+    assert "http://" not in body and "https://" not in body
+
+
+def test_holdings_source_is_credited(page_with_holdings):
+    assert "野村アセットマネジメント" in page_with_holdings
+    assert "組入全銘柄情報" in page_with_holdings

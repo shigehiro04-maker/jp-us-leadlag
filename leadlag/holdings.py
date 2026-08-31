@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import json
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -31,9 +32,12 @@ BASE_URL = "https://www.nomura-am.co.jp/fund/monthly_holdings/{code}_brd_data.xl
 SOURCE_PAGE = "https://nextfunds.jp/monthly_holdings/"
 
 # 列名の揺れを吸収するための候補。完全一致ではなく部分一致で拾う。
-CODE_KEYS = ("コード", "銘柄コード", "code")
-NAME_KEYS = ("銘柄名", "名称", "name", "銘柄")
-WEIGHT_KEYS = ("比率", "組入比率", "ウエイト", "ウェイト", "weight", "%")
+# 実ファイルの見出しは「銘柄コード_x000D_（Code）」「銘柄_x000D_（Name）」
+# 「純資産比率_x000D_% of NAV」のように改行が混ざる。部分一致で拾い、
+# ISIN コード列や英文名列を誤って掴まないよう avoid で除外する。
+CODE_KEYS = ("銘柄コード", "コード", "code")
+NAME_KEYS = ("銘柄名", "名称", "銘柄", "name")
+WEIGHT_KEYS = ("純資産比率", "組入比率", "比率", "ウエイト", "ウェイト", "weight")
 
 
 @dataclass
@@ -75,6 +79,34 @@ def _pick_column(columns, keys, exclude=(), avoid=()) -> str | None:
     return None
 
 
+def _clean_as_of(text: str | None) -> str | None:
+    """「2026年7月31日現在　（as of July 31, 2026）」から日付だけ取り出す。"""
+    if not text:
+        return None
+    m = re.search(r"(\d{4})\s*年\s*(\d{1,2})\s*月\s*(\d{1,2})\s*日", text)
+    if m:
+        return f"{int(m.group(1))}年{int(m.group(2))}月{int(m.group(3))}日"
+    m = re.search(r"\d{4}[-/]\d{1,2}[-/]\d{1,2}", text)
+    return m.group(0) if m else text.strip()[:40]
+
+
+def _normalise_weights(rows: list[dict]) -> list[dict]:
+    """比率を % に揃える。
+
+    実ファイルの「純資産比率」は 0.2628 のような小数 (=26.28%) で入っている。
+    ファイルによっては既に % の可能性もあるので、合計値を見て判断する。
+    """
+    vals = [r["weight"] for r in rows if r["weight"] is not None]
+    if not vals:
+        return rows
+    total = sum(vals)
+    if total <= 2.0:                 # 合計が 1 前後 → 小数表記なので % に直す
+        for r in rows:
+            if r["weight"] is not None:
+                r["weight"] = r["weight"] * 100.0
+    return rows
+
+
 def parse_holdings_sheet(df: pd.DataFrame) -> tuple[list[dict], str | None]:
     """組入銘柄シートを [{code, name, weight}] に正規化する。
 
@@ -102,9 +134,9 @@ def parse_holdings_sheet(df: pd.DataFrame) -> tuple[list[dict], str | None]:
     body = df.iloc[header_row + 1 :].copy()
     body.columns = [str(x).strip() for x in df.iloc[header_row].tolist()]
 
-    col_code = _pick_column(body.columns, CODE_KEYS)
-    col_name = _pick_column(body.columns, NAME_KEYS,
-                            exclude=(col_code,), avoid=("コード", "code"))
+    col_code = _pick_column(body.columns, CODE_KEYS, avoid=("ISIN",))
+    col_name = _pick_column(body.columns, NAME_KEYS, exclude=(col_code,),
+                            avoid=("コード", "code", "ISIN"))
     col_wt = _pick_column(body.columns, WEIGHT_KEYS,
                           exclude=(col_code, col_name))
     if col_code is None or col_name is None:
@@ -127,10 +159,12 @@ def parse_holdings_sheet(df: pd.DataFrame) -> tuple[list[dict], str | None]:
                 weight = None
         out.append({"code": code[:5], "name": name, "weight": weight})
 
+    out = _normalise_weights(out)
+
     # 比率の降順。比率が無いファイルは元の順序を保つ。
     if any(h["weight"] is not None for h in out):
         out.sort(key=lambda h: (h["weight"] is None, -(h["weight"] or 0.0)))
-    return out, as_of
+    return out, _clean_as_of(as_of)
 
 
 def fetch_one(ticker: str, timeout: int = 30, retries: int = 3) -> SectorHoldings:

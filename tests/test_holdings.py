@@ -159,3 +159,81 @@ def test_load_cached_tolerates_broken_file(tmp_path):
     p = tmp_path / "broken.json"
     p.write_text("{ これは JSON ではない")
     assert load_cached(p) == {}
+
+
+# ---------------------------------------------------------------------------
+# 実ファイル (野村AM「保有明細」シート) の体裁をそのまま再現した回帰テスト
+# ---------------------------------------------------------------------------
+REAL_HEADER = [
+    "No.",
+    "銘柄コード_x000D_\n（Code）",
+    "ISINコード",
+    "銘柄_x000D_\n（Name）",
+    "Name",
+    "株数（※）_x000D_\nNo. of shares",
+    "評価金額(円）_x000D_\nValuation",
+    "純資産比率_x000D_\n% of NAV",
+]
+
+
+def _real_sheet(rows: list[list]) -> pd.DataFrame:
+    pre = [
+        [1617, "NEXT FUNDS 食品（TOPIX-17）上場投信", None, None, None, None, None, None],
+        [None, "2026年7月31日現在　（as of July 31, 2026）", None, None,
+         "ISINコード：", "JP3046560003", None, None],
+    ]
+    return pd.DataFrame(pre + [REAL_HEADER] + rows)
+
+
+def test_real_layout_picks_the_right_columns():
+    """ISINコード列や英文名列を掴まないこと。"""
+    df = _real_sheet([
+        [1, 2914, "JP3726800000", "日本たばこ産業", "JAPAN TOBACCO INC.",
+         141200, 1007462000, 0.262887],
+        [2, 2802, "JP3119600009", "味の素", "AJINOMOTO CO.,INC.",
+         112100, 556576500, 0.145233],
+    ])
+    rows, as_of = parse_holdings_sheet(df)
+    assert len(rows) == 2
+    assert rows[0]["code"] == "2914"
+    assert rows[0]["name"] == "日本たばこ産業"        # 英文名ではない
+    assert as_of == "2026年7月31日"                   # 余分な英字を落とす
+
+
+def test_real_layout_converts_fraction_to_percent():
+    """純資産比率は 0.2628 のような小数で入っているので % に直すこと。"""
+    df = _real_sheet([
+        [1, 2914, "JP3726800000", "日本たばこ産業", "JT", 1, 1, 0.262887],
+        [2, 2802, "JP3119600009", "味の素", "AJI", 1, 1, 0.145233],
+        [3, 2503, "JP3258000003", "キリンHD", "KIRIN", 1, 1, 0.591880],
+    ])
+    rows, _ = parse_holdings_sheet(df)
+    by_code = {r["code"]: r for r in rows}
+    assert abs(by_code["2914"]["weight"] - 26.2887) < 1e-3
+    assert abs(sum(r["weight"] for r in rows) - 100.0) < 0.1
+
+
+def test_percent_style_file_is_left_alone():
+    """すでに % 表記のファイルを 100 倍しないこと。"""
+    df = _real_sheet([
+        [1, 2914, "JP3726800000", "日本たばこ産業", "JT", 1, 1, 26.29],
+        [2, 2802, "JP3119600009", "味の素", "AJI", 1, 1, 73.71],
+    ])
+    rows, _ = parse_holdings_sheet(df)
+    by_code = {r["code"]: r for r in rows}
+    assert abs(by_code["2914"]["weight"] - 26.29) < 1e-6
+    assert abs(by_code["2802"]["weight"] - 73.71) < 1e-6
+
+
+def test_metadata_sheet_yields_nothing():
+    """$MetaData シートを誤って銘柄表として読まないこと。"""
+    meta = pd.DataFrame([
+        [23245, None, None],
+        ["2026-03-19 16:52:06", False, None],
+        [True, None, None],
+        [None, None, None],
+        [7, "014_純資産総額", "実行結果"],
+        [22, "220_銘柄一覧", "実行結果"],
+    ])
+    rows, _ = parse_holdings_sheet(meta)
+    assert rows == []

@@ -27,6 +27,8 @@ from leadlag.config import Params, display_name             # noqa: E402
 from leadlag.data import load_bundle                        # noqa: E402
 from leadlag.direction import latest_direction              # noqa: E402
 from leadlag.engine import LeadLagEngine                    # noqa: E402
+from leadlag.holdings import SOURCE_PAGE                     # noqa: E402
+from leadlag.holdings import refresh as refresh_holdings     # noqa: E402
 
 JST = timezone(timedelta(hours=9))
 
@@ -117,23 +119,58 @@ def bar(value: float, vmax: float) -> str:
     return f'<span class="bar"><i class="{side}" style="{style}"></i></span>'
 
 
-def row_html(ticker: str, sig: float, vmax: float, tag: str) -> str:
+def holdings_html(rec: dict | None, top_n: int = 10) -> str:
+    """1 業種ぶんの構成銘柄。上位 top_n を出し、残りはさらに折りたたむ。"""
+    if not rec or not rec.get("holdings"):
+        return '<p class="hnote">構成銘柄を取得できませんでした</p>'
+
+    rows = rec["holdings"]
+
+    def one(h: dict) -> str:
+        w = f'{h["weight"]:.2f}%' if h.get("weight") is not None else "—"
+        return (f'<li class="hrow2"><span class="hc">{html.escape(str(h["code"]))}</span>'
+                f'<span class="hn">{html.escape(str(h["name"]))}</span>'
+                f'<span class="hw">{w}</span></li>')
+
+    top = "".join(one(h) for h in rows[:top_n])
+    rest = rows[top_n:]
+    more = ""
+    if rest:
+        more = (f'<details class="more"><summary>残り{len(rest)}銘柄</summary>'
+                f'<ul class="hlist">{"".join(one(h) for h in rest)}</ul></details>')
+    stale = ' <span class="staleflag">前回取得ぶん</span>' if rec.get("stale") else ""
+    asof = html.escape(str(rec.get("as_of") or "基準日不明"))
+    return (f'<ul class="hlist">{top}</ul>{more}'
+            f'<p class="hnote">{asof}現在・全{len(rows)}銘柄{stale}</p>')
+
+
+def row_html(ticker: str, sig: float, vmax: float, tag: str,
+             holdings: dict | None = None) -> str:
     cls = {"ロング": "long", "ショート": "short"}.get(tag, "flat")
     # λ が大きいとシグナルが 8 業種に集中し、残りは実質ノイズになる。
     # 上位/下位に選ばれていても弱いものは見た目で分かるようにする。
     weak = ' <span class="weak" title="シグナルが弱く実質ノイズです">弱</span>' \
         if vmax > 0 and abs(sig) < 0.2 * vmax else ""
-    return f"""      <li class="row {cls}">
-        <span class="tk">{html.escape(ticker)}</span>
-        <span class="nm">{html.escape(display_name(ticker))}{weak}</span>
-        {bar(sig, vmax)}
-        <span class="sg">{sig:+.3f}</span>
+    return f"""      <li class="rowwrap">
+        <details class="sect">
+          <summary class="rowsum">
+            <span class="row {cls}">
+              <span class="tk">{html.escape(ticker)}</span>
+              <span class="nm">{html.escape(display_name(ticker))}{weak}</span>
+              {bar(sig, vmax)}
+              <span class="sg">{sig:+.3f}</span>
+              <span class="chev" aria-hidden="true">›</span>
+            </span>
+          </summary>
+          <div class="holdings">{holdings_html(holdings)}</div>
+        </details>
       </li>"""
 
 
 # ---------------------------------------------------------------------------
 def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
-          bundle=None) -> Path:
+          bundle=None, holdings: dict | None = None) -> Path:
+    bundle_is_synthetic = bundle is not None
     if bundle is not None:
         pass
     elif synthetic:
@@ -154,6 +191,11 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     shorts = [t for t in sig.index if w.get(t, 0) < 0]
 
     md = latest_direction(bundle, asof=asof)
+
+    # 業種別 ETF の構成銘柄 (月次更新なので普段はキャッシュを使う)
+    if holdings is None:
+        holdings = ({} if (synthetic or bundle_is_synthetic)
+                    else refresh_holdings(outdir / "holdings.json"))
 
     # 次の東京立会日 (概算: 翌営業日。祝日は当日になって確定する)
     next_session = (asof + pd.offsets.BDay(1)).date()
@@ -199,12 +241,12 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     strength_cls = {"強い": "st5", "やや強い": "st4", "標準": "st3",
                     "やや弱い": "st2", "弱い": "st1"}[strength]
 
-    long_rows = "\n".join(row_html(t, sig[t], vmax, "ロング") for t in longs)
-    short_rows = "\n".join(row_html(t, sig[t], vmax, "ショート") for t in shorts)
+    long_rows = "\n".join(row_html(t, sig[t], vmax, "ロング", holdings.get(t)) for t in longs)
+    short_rows = "\n".join(row_html(t, sig[t], vmax, "ショート", holdings.get(t)) for t in shorts)
     mid = [t for t in sig.index if t not in longs and t not in shorts]
-    mid_rows = "\n".join(row_html(t, sig[t], vmax, "-") for t in mid)
+    mid_rows = "\n".join(row_html(t, sig[t], vmax, "-", holdings.get(t)) for t in mid)
     us_rows = "\n".join(
-        f'      <li class="row {"long" if v >= 0 else "short"}">'
+        f'      <li class="row plain {"long" if v >= 0 else "short"}">'
         f'<span class="tk">{t}</span>'
         f'<span class="nm">{html.escape(display_name(t))}</span>'
         f'{bar(float(v), float(np.abs(us_z).max()) or 1.0)}'
@@ -227,6 +269,11 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     jp_last = (bundle.jp_last_raw or bundle.dates[-1]).date()
     lag = "" if str(us_last) == str(asof.date()) else "（提供元の更新待ちで1日前を使用）"
     print(f"データ最終日: US {us_last} / JP {jp_last} / 使用した米国終値 {asof.date()} {lag}")
+
+    n_hold = sum(len(v.get("holdings") or []) for v in holdings.values()
+                 if isinstance(v, dict))
+    holdings_src = (f"・全{n_hold}銘柄を収録" if n_hold else "・未取得")
+    print(f"構成銘柄: {n_hold} 銘柄を収録")
 
     generated = datetime.now(JST).strftime("%Y-%m-%d %H:%M JST")
     html_doc = PAGE.format(
@@ -256,6 +303,7 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         asof_iso=asof.date().isoformat(),
         us_last=us_last,
         jp_last=jp_last,
+        holdings_src=holdings_src,
     )
 
     outdir.mkdir(parents=True, exist_ok=True)
@@ -325,9 +373,36 @@ h1 {{ font-size:15px; font-weight:600; margin:0; color:var(--muted); letter-spac
 .meta {{ font-size:13px; color:var(--muted); margin-top:10px; }}
 .meta b {{ color:var(--fg); font-weight:600; }}
 ul {{ list-style:none; padding:0; margin:0; }}
-.row {{ display:grid; grid-template-columns:52px 1fr 76px 52px; align-items:center;
-  gap:8px; padding:7px 0; border-bottom:1px solid var(--line); font-size:14px; }}
-.row:last-child {{ border-bottom:0; }}
+.rowwrap {{ border-bottom:1px solid var(--line); }}
+.rowwrap:last-child {{ border-bottom:0; }}
+.rowsum {{ display:block; cursor:pointer; list-style:none; }}
+.rowsum::-webkit-details-marker {{ display:none; }}
+.rowsum::marker {{ content:""; }}
+.row {{ display:grid; grid-template-columns:52px 1fr 68px 50px 12px;
+  align-items:center; gap:8px; padding:9px 0; font-size:14px; }}
+.chev {{ color:var(--muted); font-size:11px; text-align:right;
+  transition:transform .15s; }}
+.row.plain {{ grid-template-columns:52px 1fr 76px 52px;
+  border-bottom:1px solid var(--line); }}
+.row.plain:last-child {{ border-bottom:0; }}
+.sect[open] .chev {{ transform:rotate(90deg); }}
+@media (prefers-reduced-motion:reduce) {{ .chev {{ transition:none; }} }}
+.sect[open] .rowsum .row {{ background:var(--line); border-radius:6px;
+  padding-inline:6px; margin-inline:-6px; }}
+.holdings {{ padding:2px 0 12px 6px; }}
+.hlist {{ list-style:none; padding:0; margin:2px 0 0; }}
+.hrow2 {{ display:grid; grid-template-columns:44px 1fr 60px; gap:8px;
+  padding:4px 0; font-size:13px; }}
+.hc {{ font-variant-numeric:tabular-nums; color:var(--muted); font-size:12px; }}
+.hn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
+.hw {{ text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); }}
+.hnote {{ font-size:11px; color:var(--muted); margin:8px 0 0; }}
+.staleflag {{ color:var(--down); }}
+details.more > summary {{ font-size:12px; color:var(--accent); padding:8px 0 4px;
+  cursor:pointer; list-style:none; }}
+details.more > summary::-webkit-details-marker {{ display:none; }}
+details.more > summary::after {{ content:" ›"; }}
+details.more[open] > summary::after {{ content:" ⌄"; }}
 .tk {{ font-variant-numeric:tabular-nums; font-size:12px; color:var(--muted); }}
 .nm {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
 .sg {{ text-align:right; font-variant-numeric:tabular-nums; font-size:13px; }}
@@ -341,11 +416,11 @@ ul {{ list-style:none; padding:0; margin:0; }}
 .label {{ font-size:12px; font-weight:700; letter-spacing:.06em; margin:2px 0 8px; }}
 .label.l {{ color:var(--up); }} .label.s {{ color:var(--down); }}
 details {{ margin-top:10px; }}
-details > summary {{ cursor:pointer; font-size:13px; color:var(--accent);
-  list-style:none; padding:8px 0; }}
+details > summary:not(.rowsum) {{ cursor:pointer; font-size:13px;
+  color:var(--accent); list-style:none; padding:8px 0; }}
 details > summary::-webkit-details-marker {{ display:none; }}
-details > summary::after {{ content:" ›"; }}
-details[open] > summary::after {{ content:" ⌄"; }}
+details > summary:not(.rowsum)::after {{ content:" ›"; }}
+details[open] > summary:not(.rowsum)::after {{ content:" ⌄"; }}
 .stats {{ display:flex; gap:18px; margin-bottom:10px; }}
 .stat .v {{ font-size:22px; font-weight:700; font-variant-numeric:tabular-nums; }}
 .stat .k {{ font-size:11px; color:var(--muted); }}
@@ -443,6 +518,7 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 
 <footer>
   生成: {generated}　/　取得できたデータの最終日: 米国 {us_last}・日本 {jp_last}<br>
+  構成銘柄: 野村アセットマネジメント「組入全銘柄情報」（月次）{holdings_src}<br>
   中川 慧ほか「部分空間正則化付き主成分分析を用いた日米業種リードラグ投資戦略」
   (SIG-FIN-036-13) の再現実装による出力です。<br>
   <b>投資助言ではありません。</b>バックテスト上の成績は将来の成果を保証しません。

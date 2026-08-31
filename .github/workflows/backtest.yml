@@ -1,0 +1,67 @@
+name: バックテストを実行
+
+# 手動実行専用。実データでの検証結果を results/ にコミットする。
+on:
+  workflow_dispatch:
+    inputs:
+      backtest_start:
+        description: "バックテスト開始日 (空なら 2015-01-01)"
+        required: false
+        default: ""
+      sweep_lams:
+        description: "λ の候補 (カンマ区切り)"
+        required: false
+        default: "0,0.3,0.5,0.7,0.9,0.95,1.0"
+      sweep_ks:
+        description: "K の候補 (カンマ区切り)"
+        required: false
+        default: "2,3,4,5"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: backtest
+  cancel-in-progress: false
+
+jobs:
+  backtest:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 依存関係をインストール
+        run: pip install -r requirements.txt
+
+      - name: 合成データでスクリプトの健全性を確認
+        run: python scripts/run_backtest.py --outdir /tmp/smoke --synthetic 900 --sweep-lams 0.9 --sweep-ks 3 > /dev/null
+
+      - name: 実データでバックテスト
+        run: |
+          set -o pipefail
+          mkdir -p results
+          python scripts/run_backtest.py \
+            --outdir results \
+            --backtest-start "${{ inputs.backtest_start }}" \
+            --sweep-lams "${{ inputs.sweep_lams }}" \
+            --sweep-ks "${{ inputs.sweep_ks }}" 2>&1 | tee results/run.log
+
+      - name: 結果をコミット
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f results
+          if git diff --staged --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "backtest: $(date -u +%Y-%m-%d) の実行結果"
+            git pull --rebase
+            git push
+          fi

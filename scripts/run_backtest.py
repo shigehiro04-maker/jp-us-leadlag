@@ -62,13 +62,22 @@ def data_coverage(us_panel: pd.DataFrame, jp_panel: pd.DataFrame) -> pd.DataFram
     取ると評価期間に穴が空く。穴の前後で推定ウィンドウが不連続な日付を
     またぐため、気づかないと結果が歪む。
     """
-    def _count(panel: pd.DataFrame) -> pd.Series:
-        close = panel.loc[:, [c for c in panel.columns if c[1] == "Close"]]
-        has = close.notna().any(axis=1)
+    def _count(panel: pd.DataFrame, field: str, how: str) -> pd.Series:
+        sub = panel.loc[:, [c for c in panel.columns if c[1] == field]]
+        has = sub.notna().all(axis=1) if how == "all" else sub.notna().any(axis=1)
         return has.groupby([has.index.year, has.index.month]).sum()
 
-    us, jp = _count(us_panel), _count(jp_panel)
-    df = pd.DataFrame({"us": us, "jp": jp}).fillna(0).astype(int)
+    df = pd.DataFrame(
+        {
+            "us_close_any": _count(us_panel, "Close", "any"),
+            "us_close_all": _count(us_panel, "Close", "all"),
+            "jp_close_any": _count(jp_panel, "Close", "any"),
+            "jp_close_all": _count(jp_panel, "Close", "all"),
+            # 始値は執行価格そのもの。ここが欠けると戦略リターンが計算できない。
+            "jp_open_any": _count(jp_panel, "Open", "any"),
+            "jp_open_all": _count(jp_panel, "Open", "all"),
+        }
+    ).fillna(0).astype(int)
     df.index = [f"{y}-{m:02d}" for y, m in df.index]
     return df
 
@@ -112,11 +121,30 @@ def main() -> int:
         us_panel, jp_panel = load_prices(start=a.start, cache_dir=a.cache, refresh=True)
         coverage = data_coverage(us_panel, jp_panel)
         coverage.to_csv(out / "data_coverage.csv")
-        gaps = coverage[(coverage["us"] == 0) | (coverage["jp"] == 0)]
-        if len(gaps):
-            _log(f"⚠ 片方の市場のデータが 1 日も無い月が {len(gaps)} 件あります:")
-            print(gaps.to_string(), flush=True)
+        thin = coverage[
+            (coverage["jp_open_all"] < coverage["jp_close_any"] * 0.5)
+            | (coverage["us_close_all"] < coverage["us_close_any"] * 0.5)
+        ]
+        if len(thin):
+            _log(f"⚠ 一部の銘柄で値が揃っていない月が {len(thin)} 件あります:")
+            print(thin.to_string(), flush=True)
         bundle = build_bundle(us_panel, jp_panel)
+
+        # 実際に戦略が組めた日を月ごとに数える（ここが飛ぶと評価期間に穴が空く）
+        avail = pd.DataFrame(
+            {
+                "us_cc": bundle.us_cc.notna().sum(axis=1),
+                "jp_cc": bundle.jp_cc.notna().sum(axis=1),
+                "jp_oc": bundle.jp_oc.notna().sum(axis=1),
+            }
+        )
+        monthly = avail.groupby([avail.index.year, avail.index.month]).mean().round(1)
+        monthly.index = [f"{y}-{m:02d}" for y, m in monthly.index]
+        monthly.to_csv(out / "available_names.csv")
+        starved = monthly[(monthly["jp_oc"] < 6) | (monthly["us_cc"] < 6)]
+        if len(starved):
+            _log(f"⚠ 使える銘柄数が足りない月が {len(starved)} 件あります:")
+            print(starved.to_string(), flush=True)
         base_kwargs = dict(prior_mode="fixed")
 
         common = pd.Series(1, index=bundle.dates)

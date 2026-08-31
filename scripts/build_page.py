@@ -143,9 +143,11 @@ def holdings_html(rec: dict | None, top_n: int = 10) -> str:
         w = f'{h["weight"]:.2f}%' if h.get("weight") is not None else "—"
         code = html.escape(str(h["code"]))
         name = html.escape(str(h["name"]))
+        # aria-label は付けない。付けると行の中身 (コード・銘柄名・組入比率) が
+        # 読み上げから消え、比率が読まれなくなるため。リンク先は
+        # 一覧の見出しで「Yahoo!ファイナンスへ」と一度伝えれば足りる。
         return (f'<li><a class="hrow2" href="{quote_url(h["code"])}"'
-                f' target="_blank" rel="noopener noreferrer"'
-                f' aria-label="{name}をYahoo!ファイナンスで見る">'
+                f' target="_blank" rel="noopener noreferrer">'
                 f'<span class="hc">{code}</span>'
                 f'<span class="hn">{name}</span>'
                 f'<span class="hw">{w}</span></a></li>')
@@ -158,7 +160,8 @@ def holdings_html(rec: dict | None, top_n: int = 10) -> str:
                 f'<ul class="hlist">{"".join(one(h) for h in rest)}</ul></details>')
     stale = ' <span class="staleflag">前回取得ぶん</span>' if rec.get("stale") else ""
     asof = html.escape(str(rec.get("as_of") or "基準日不明"))
-    return (f'<ul class="hlist">{top}</ul>{more}'
+    return (f'<p class="hlead">構成銘柄（タップで Yahoo!ファイナンスへ）</p>'
+            f'<ul class="hlist">{top}</ul>{more}'
             f'<p class="hnote">{asof}現在・全{len(rows)}銘柄{stale}</p>')
 
 
@@ -420,6 +423,7 @@ ul {{ list-style:none; padding:0; margin:0; }}
 .hc {{ font-variant-numeric:tabular-nums; color:var(--muted); font-size:12px; }}
 .hn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
 .hw {{ text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); }}
+.hlead {{ font-size:11px; color:var(--muted); margin:6px 0 2px; }}
 .hnote {{ font-size:11px; color:var(--muted); margin:8px 0 0; }}
 .staleflag {{ color:var(--down); }}
 details.more > summary {{ font-size:12px; color:var(--accent); padding:8px 0 4px;

@@ -253,3 +253,21 @@ def test_tapping_the_code_does_not_toggle_the_section(page_with_holdings):
 
 def test_links_are_labelled_for_screen_readers(page_with_holdings):
     assert "をYahoo!ファイナンスで見る" in page_with_holdings
+
+
+def test_constituent_rows_are_not_aria_overridden(page_with_holdings):
+    """構成銘柄の行に aria-label を付けないこと。
+
+    aria-label はリンクの中身を上書きするため、付けると読み上げ時に
+    組入比率が読まれなくなる。行の内容そのものを読ませる。
+    """
+    doc = page_with_holdings
+    for m in re.finditer(r'<a class="hrow2"[^>]*>', doc):
+        assert "aria-label" not in m.group(0)
+    assert "構成銘柄（タップで Yahoo!ファイナンスへ）" in doc
+
+
+def test_etf_code_link_keeps_its_label(page_with_holdings):
+    """ETFコードだけの表示ではリンク先が分からないので、こちらには残す。"""
+    assert 'class="tk etflink"' in page_with_holdings
+    assert "をYahoo!ファイナンスで見る" in page_with_holdings

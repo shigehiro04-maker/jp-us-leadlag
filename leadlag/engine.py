@@ -139,6 +139,16 @@ class LeadLagEngine:
         return self._c_full_cache[key]
 
     # -- 銘柄選択 ----------------------------------------------------------
+    def _covered(self, win: pd.DataFrame, ticker: str) -> bool:
+        """推定ウィンドウ内の欠損が許容範囲に収まっているか。
+
+        1 日でも欠けたら除外する作りにすると、提供元が散発的に値を落とした
+        月をまたぐ 60 営業日ぶん、その銘柄が丸ごと使えなくなる。実際に
+        2025 年 10 月の欠損で 3 か月ぶんの評価日が消える不具合が出たため、
+        少数の欠損は許容して標準化側で埋める方針にしている。
+        """
+        return bool(win[ticker].notna().mean() >= self.p.min_window_coverage)
+
     def _available(self, i: int) -> tuple[list[str], list[str]]:
         """時点 i で使える米国銘柄と、t+1 に執行できる日本銘柄。"""
         L = self.p.window
@@ -146,12 +156,12 @@ class LeadLagEngine:
 
         us_ok = [
             t for t in self.us_tickers
-            if win[t].notna().all() and np.isfinite(self.returns.iloc[i][t])
+            if self._covered(win, t) and np.isfinite(self.returns.iloc[i][t])
         ]
         jp_next = self.bundle.jp_oc.iloc[i + 1]
         jp_ok = [
             t for t in self.jp_tickers
-            if win[t].notna().all() and np.isfinite(jp_next[t])
+            if self._covered(win, t) and np.isfinite(jp_next[t])
         ]
         return us_ok, jp_ok
 
@@ -253,9 +263,9 @@ class LeadLagEngine:
             w = self.returns.iloc[j - L : j]
             n_us = sum(
                 1 for t in self.us_tickers
-                if w[t].notna().all() and np.isfinite(self.returns.iloc[j][t])
+                if self._covered(w, t) and np.isfinite(self.returns.iloc[j][t])
             )
-            n_jp = sum(1 for t in self.jp_tickers if w[t].notna().all())
+            n_jp = sum(1 for t in self.jp_tickers if self._covered(w, t))
             if n_us >= p.min_names and n_jp >= p.min_names:
                 i = j
                 break
@@ -268,8 +278,8 @@ class LeadLagEngine:
 
         win = self.returns.iloc[i - L : i]
         us_ok = [t for t in self.us_tickers
-                 if win[t].notna().all() and np.isfinite(self.returns.iloc[i][t])]
-        jp_ok = [t for t in self.jp_tickers if win[t].notna().all()]
+                 if self._covered(win, t) and np.isfinite(self.returns.iloc[i][t])]
+        jp_ok = [t for t in self.jp_tickers if self._covered(win, t)]
 
         cf = self.c_full_at(i).loc[us_ok + jp_ok, us_ok + jp_ok].to_numpy()
         res = compute_signal(

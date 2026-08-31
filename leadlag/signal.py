@@ -149,11 +149,17 @@ def compute_signal(
     is_us = np.array([True] * n_us + [False] * n_jp)
 
     # --- 窓内の平均・標準偏差で標準化 (式 8-9)。t のデータは一切使わない ---
+    # 無料データは散発的に値が抜けるため、欠損を許容して計算する。
+    # 平均・標準偏差は欠損を無視して求め、標準化後に残った欠損は 0
+    # (＝その銘柄の窓内平均) で埋める。少数の欠損なら相関はわずかに
+    # 弱まる方向にしか動かず、行列の半正定値性も保たれる。
     r_win = np.hstack([r_us, r_jp])                       # (L, N)
-    mu = r_win.mean(axis=0)
-    sd = r_win.std(axis=0, ddof=0)
-    sd = np.where(sd < _EPS, _EPS, sd)
-    z_win = (r_win - mu) / sd
+    with np.errstate(invalid="ignore"):
+        mu = np.nanmean(r_win, axis=0)
+        sd = np.nanstd(r_win, axis=0, ddof=0)
+    mu = np.nan_to_num(mu, nan=0.0)
+    sd = np.where(np.isfinite(sd) & (sd > _EPS), sd, _EPS)
+    z_win = np.nan_to_num((r_win - mu) / sd, nan=0.0)
 
     # --- 窓内相関行列 C_t ---
     c_t = np.corrcoef(z_win, rowvar=False)

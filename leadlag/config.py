@@ -121,6 +121,10 @@ class Params:
     # 「米国 t → 日本 t+1」の実際のリード・ラグ構造に合わせる (論文外の変種)
     lag_jp_in_corr: bool = False
     min_names: int = 6               # この数を下回る日はスキップ
+    # 推定ウィンドウ内で、その銘柄に値が入っている必要のある割合。
+    # 1.0 にすると 1 日でも欠ければ 60 営業日ぶんその銘柄が使えなくなる。
+    # 無料データは散発的に値が抜けるため、既定では 5% までの欠損を許容する。
+    min_window_coverage: float = 0.95
 
     def to_dict(self) -> dict:
         return asdict(self)

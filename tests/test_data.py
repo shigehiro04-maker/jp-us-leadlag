@@ -133,3 +133,57 @@ def test_sanitize_keeps_large_but_plausible_moves():
     cleaned, rep = sanitize_returns(df, max_abs=0.5, label="t")
     assert cleaned.notna().all().all()      # ±40% は残す
     assert rep.empty
+
+
+def test_scattered_gaps_do_not_erase_the_window():
+    """散発的な欠損で評価日がまるごと消えないこと。
+
+    実データで 2025年10月に日本側の値が数銘柄ぶん抜けており、「ウィンドウ内に
+    1 日でも欠損があればその銘柄を除外する」という作りのせいで、10月から
+    翌2月まで約3か月ぶんのシグナルが 1 日も生成されないという不具合が出た。
+    """
+    from leadlag.backtest import run_all
+
+    bundle, _ = make_bundle(n_days=900, seed=41, rho=0.4)
+    params = Params(window=60, prior_mode="expanding", prior_min_obs=300)
+    full = LeadLagEngine(bundle, params).run()
+
+    import copy
+
+    holed = copy.deepcopy(bundle)
+    rng = np.random.default_rng(7)
+    # 実データの 2025年10月と同じ程度（1日あたり 2 銘柄前後）の欠損を
+    # 20 営業日ぶん、日替わりで別々の銘柄に入れる
+    for day in range(600, 620):
+        for tk in rng.choice(holed.jp_cc.columns, size=2, replace=False):
+            holed.jp_cc.iloc[day, holed.jp_cc.columns.get_loc(tk)] = np.nan
+
+    holed_panel = LeadLagEngine(holed, params).run()
+
+    lost = len(full.pca_sub) - len(holed_panel.pca_sub)
+    assert lost <= 5, f"{lost} 日ぶんの評価日が失われた（欠損は20日ぶんのみ）"
+
+    # 欠損期間の直後にもシグナルが出ていること
+    after = holed.dates[640]
+    assert (holed_panel.pca_sub.index == after).any()
+
+    # 損益も計算できること
+    res = run_all(holed_panel, holed, params)
+    assert np.isfinite(res["strategies"]["PCA_SUB"].returns).all()
+
+
+def test_signal_tolerates_nan_in_window():
+    from leadlag.signal import compute_signal
+
+    rng = np.random.default_rng(3)
+    us = rng.standard_normal((60, 4)) * 0.01
+    jp = rng.standard_normal((60, 5)) * 0.01
+    us[10, 1] = np.nan
+    jp[22, 3] = np.nan
+    c_full = np.eye(9)
+    res = compute_signal(us, jp, rng.standard_normal(4) * 0.01,
+                         ["XLB", "XLE", "XLF", "XLI"],
+                         ["1617.T", "1618.T", "1619.T", "1620.T", "1621.T"],
+                         c_full, lam=0.9, n_factors=3)
+    assert np.isfinite(res.scores).all()
+    assert np.isfinite(res.b_matrix).all()

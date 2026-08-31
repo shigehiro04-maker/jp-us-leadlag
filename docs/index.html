@@ -39,6 +39,18 @@ h1 { font-size:15px; font-weight:600; margin:0; color:var(--muted); letter-spaci
 .dir .pct { font-size:19px; font-weight:600; }
 .up { color:var(--up); } .down { color:var(--down); }
 .flat-dir { color:var(--muted); }
+.word.bias { font-size:34px; }
+.strengthline { display:flex; align-items:baseline; gap:10px; margin-top:8px; }
+.strengthline .lbl { font-size:12px; color:var(--muted); }
+.strengthline .pct { font-size:22px; font-weight:700; }
+.pct.st5 { color:var(--down); } .pct.st4 { color:var(--down); opacity:.85; }
+.pct.st3 { color:var(--muted); } .pct.st2 { color:var(--fg); opacity:.75; }
+.pct.st1 { color:var(--up); }
+.meter { display:flex; gap:5px; margin:12px 0 4px; }
+.meter i { flex:1; height:7px; border-radius:3px; }
+.meter i.on { background:var(--down); }
+.meter i.off { background:var(--line); }
+.meta.small { font-size:12px; margin-top:10px; }
 .weak { font-size:10px; color:var(--muted); border:1px solid var(--line);
   border-radius:4px; padding:0 3px; margin-left:5px; vertical-align:1px; }
 .meta { font-size:13px; color:var(--muted); margin-top:10px; }
@@ -71,7 +83,7 @@ details[open] > summary::after { content:" ⌄"; }
 .spark { width:100%; height:48px; display:block; margin:6px 0 2px; }
 .sparkline { stroke:var(--accent); stroke-width:2; vector-effect:non-scaling-stroke; }
 .zero { stroke:var(--line); stroke-width:1; vector-effect:non-scaling-stroke; }
-.hrow { display:grid; grid-template-columns:56px 1fr 28px; padding:5px 0;
+.hrow { display:grid; grid-template-columns:56px 1fr 68px; padding:5px 0;
   font-size:13px; border-bottom:1px solid var(--line); }
 .hd { color:var(--muted); font-variant-numeric:tabular-nums; }
 .hv { text-align:right; font-variant-numeric:tabular-nums; }
@@ -92,15 +104,27 @@ footer { font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0;
 </header>
 
 <section class="card">
-  <h2>市場全体の方向</h2>
+  <h2>日中の地合い</h2>
   <div class="dir">
-    <span class="word down">▼ 下落</span>
-    <span class="pct down">-0.06%</span>
+    <span class="word bias">売り優位</span>
   </div>
-  <p class="meta">当日の米国11業種 等ウェイト <b>-0.02%</b> ・
-     予測の残差標準偏差 <b>0.75%</b><br>
-     1日先の方向の的中率は現実的に53〜56%程度です。予測値の絶対値は
-     残差標準偏差よりずっと小さいことが普通なので、方向の目安として見てください。</p>
+  <div class="strengthline">
+    <span class="lbl">下押し圧力</span>
+    <span class="pct st2">やや弱い</span>
+  </div>
+  <div class="meter"><i class="on"></i><i class="on"></i><i class="off"></i><i class="off"></i><i class="off"></i></div>
+  <p class="meta">
+     翌日の東京EW日中の予測 <b>-7bp</b> ・
+     過去250営業日の日中平均 <b>-8bp</b>（うち下落 54%）・
+     当日の米国11業種 等ウェイト <b>-0.02%</b>
+  </p>
+  <p class="meta small">
+     日本株のリターンはほぼ夜間（前日大引け→翌日寄付き）に発生し、日中は恒常的に
+     マイナスです。このモデルは上がるか下がるかを当てるものではなく、
+     <b>その下押し圧力が過去と比べて強いか弱いか</b>を見るものです。
+     強弱は過去250営業日の予測値の分布の五分位で判定しています。
+     「弱い」は上昇に転じるという意味ではありません。
+  </p>
 </section>
 
 <section class="card">
@@ -241,21 +265,24 @@ footer { font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0;
   <h2>直近の実績（ロングショート）</h2>
   <div class="stats">
     <div class="stat"><div class="v">-0.1%</div><div class="k">直近1営業日 累積</div></div>
-    <div class="stat"><div class="v">0%</div><div class="k">方向の的中率</div></div>
+    <div class="stat"><div class="v">+66bp</div><div class="k">日中EWの平均<br>（1日あたり）</div></div>
   </div>
   
   <details>
-    <summary>日別の内訳</summary>
+    <summary>日別の内訳（左=ロングショート、右=日中EW）</summary>
     <ul>
-      <li class="hrow"><span class="hd">08-28</span><span class="hv neg">-0.10%</span><span class="hm">×</span></li>
+      <li class="hrow"><span class="hd">08-28</span><span class="hv neg">-0.10%</span><span class="hv pos">+66bp</span></li>
     </ul>
   </details>
   <p class="meta">実際に運用した記録ではなく、毎朝このページが出した予想を
-     その日の実現リターンで後から採点したものです。取引コストは含みません。</p>
+     その日の実現リターンで後から採点したものです。取引コストは含みません。<br>
+     <b>検証メモ:</b> 2015〜2025年の再現では良好でしたが、①片道4.6bpsで損益が消える
+     回転率、②2026年に入っての大幅な悪化、が確認されています。詳細は検証レポートを
+     参照してください。</p>
 </section>
 
 <footer>
-  生成: 2026-08-31 08:38 JST　/　取得できたデータの最終日: 米国 2026-08-28・日本 2026-08-28<br>
+  生成: 2026-08-31 11:15 JST　/　取得できたデータの最終日: 米国 2026-08-28・日本 2026-08-31<br>
   中川 慧ほか「部分空間正則化付き主成分分析を用いた日米業種リードラグ投資戦略」
   (SIG-FIN-036-13) の再現実装による出力です。<br>
   <b>投資助言ではありません。</b>バックテスト上の成績は将来の成果を保証しません。

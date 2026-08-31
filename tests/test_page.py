@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import copy
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -41,17 +42,27 @@ def daily_pages(tmp_path_factory):
     return out, full
 
 
-def test_page_is_written_and_self_contained(daily_pages):
+EXTERNAL_RESOURCE = re.compile(
+    r'(?:src|href)\s*=\s*"https?://(?!finance\.yahoo\.co\.jp/)', re.I
+)
+
+
+def test_page_loads_no_external_resources(daily_pages):
+    """外部から読み込むファイルが無いこと (機内でも開ける / CSP に引っかからない)。
+
+    Yahoo!ファイナンスへのリンクは「押したら遷移する」だけで、ページの表示には
+    影響しないので許容する。スクリプトやスタイルの読み込みは許さない。
+    """
     out, _ = daily_pages
     doc = (out / "index.html").read_text()
     assert doc.startswith("<!DOCTYPE html>")
     assert "次の東京立会日の予想" in doc
-    # 外部 CDN に一切依存しないこと (機内でも開ける / CSP に引っかからない)。
-    # SVG の名前空間 URL だけは取得先ではないので除外する。
-    body = doc.replace("http://www.w3.org/2000/svg", "")
-    assert "http://" not in body
-    assert "https://" not in body
     assert (out / ".nojekyll").exists()
+
+    hits = EXTERNAL_RESOURCE.findall(doc)
+    assert not hits, f"外部リソースを読み込んでいる: {hits[:3]}"
+    assert "<script src=" not in doc
+    assert "<link rel=\"stylesheet\"" not in doc
 
 
 def test_page_contains_disclaimer(daily_pages):
@@ -188,11 +199,57 @@ def test_stale_holdings_are_flagged(tmp_path):
     assert "前回取得ぶん" in doc
 
 
-def test_holdings_page_is_still_self_contained(page_with_holdings):
-    body = page_with_holdings.replace("http://www.w3.org/2000/svg", "")
-    assert "http://" not in body and "https://" not in body
+def test_holdings_page_loads_no_external_resources(page_with_holdings):
+    hits = EXTERNAL_RESOURCE.findall(page_with_holdings)
+    assert not hits, f"外部リソースを読み込んでいる: {hits[:3]}"
 
 
 def test_holdings_source_is_credited(page_with_holdings):
     assert "野村アセットマネジメント" in page_with_holdings
     assert "組入全銘柄情報" in page_with_holdings
+
+
+# ---------------------------------------------------------------------------
+# Yahoo!ファイナンスへのリンク
+# ---------------------------------------------------------------------------
+def test_quote_url_builds_tokyo_ticker():
+    from build_page import quote_url
+
+    assert quote_url("6501") == "https://finance.yahoo.co.jp/quote/6501.T"
+    assert quote_url("1625.T") == "https://finance.yahoo.co.jp/quote/1625.T"
+    assert quote_url(" 2802 ") == "https://finance.yahoo.co.jp/quote/2802.T"
+
+
+def test_sector_etf_code_links_to_yahoo(page_with_holdings):
+    from leadlag.config import JP_TICKERS
+
+    doc = page_with_holdings
+    for t in JP_TICKERS:
+        assert f'href="https://finance.yahoo.co.jp/quote/{t}"' in doc
+
+
+def test_constituents_link_to_yahoo(page_with_holdings):
+    doc = page_with_holdings
+    # 上位10銘柄ぶんのリンク (ダミーの構成銘柄は 1300〜)
+    assert 'href="https://finance.yahoo.co.jp/quote/1300.T"' in doc
+    assert 'class="hrow2" href="https://finance.yahoo.co.jp/quote/' in doc
+
+
+def test_links_open_in_a_new_tab_safely(page_with_holdings):
+    doc = page_with_holdings
+    n_links = doc.count("finance.yahoo.co.jp/quote/")
+    assert n_links > 20
+    # すべてのリンクに rel="noopener noreferrer" が付いていること
+    assert doc.count('rel="noopener noreferrer"') == n_links
+    assert doc.count('target="_blank"') == n_links
+
+
+def test_tapping_the_code_does_not_toggle_the_section(page_with_holdings):
+    """業種コードのリンクは折りたたみの中にあるので、開閉を止める必要がある。"""
+    doc = page_with_holdings
+    assert 'document.querySelectorAll(".rowsum a")' in doc
+    assert "stopPropagation" in doc
+
+
+def test_links_are_labelled_for_screen_readers(page_with_holdings):
+    assert "をYahoo!ファイナンスで見る" in page_with_holdings

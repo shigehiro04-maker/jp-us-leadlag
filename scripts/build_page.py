@@ -16,6 +16,7 @@ import json
 import sys
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from urllib.parse import quote
 
 import numpy as np
 import pandas as pd
@@ -119,6 +120,18 @@ def bar(value: float, vmax: float) -> str:
     return f'<span class="bar"><i class="{side}" style="{style}"></i></span>'
 
 
+# Yahoo!ファイナンス (日本) の個別銘柄ページ。東証銘柄は「コード.T」で引ける。
+YAHOO_QUOTE = "https://finance.yahoo.co.jp/quote/{code}"
+
+
+def quote_url(code: str) -> str:
+    """東証の銘柄コードから Yahoo!ファイナンスの個別ページ URL を作る。"""
+    code = str(code).strip()
+    if not code.endswith(".T"):
+        code = f"{code}.T"
+    return YAHOO_QUOTE.format(code=quote(code, safe=".-"))
+
+
 def holdings_html(rec: dict | None, top_n: int = 10) -> str:
     """1 業種ぶんの構成銘柄。上位 top_n を出し、残りはさらに折りたたむ。"""
     if not rec or not rec.get("holdings"):
@@ -128,9 +141,14 @@ def holdings_html(rec: dict | None, top_n: int = 10) -> str:
 
     def one(h: dict) -> str:
         w = f'{h["weight"]:.2f}%' if h.get("weight") is not None else "—"
-        return (f'<li class="hrow2"><span class="hc">{html.escape(str(h["code"]))}</span>'
-                f'<span class="hn">{html.escape(str(h["name"]))}</span>'
-                f'<span class="hw">{w}</span></li>')
+        code = html.escape(str(h["code"]))
+        name = html.escape(str(h["name"]))
+        return (f'<li><a class="hrow2" href="{quote_url(h["code"])}"'
+                f' target="_blank" rel="noopener noreferrer"'
+                f' aria-label="{name}をYahoo!ファイナンスで見る">'
+                f'<span class="hc">{code}</span>'
+                f'<span class="hn">{name}</span>'
+                f'<span class="hw">{w}</span></a></li>')
 
     top = "".join(one(h) for h in rows[:top_n])
     rest = rows[top_n:]
@@ -155,7 +173,10 @@ def row_html(ticker: str, sig: float, vmax: float, tag: str,
         <details class="sect">
           <summary class="rowsum">
             <span class="row {cls}">
-              <span class="tk">{html.escape(ticker)}</span>
+              <a class="tk etflink" href="{quote_url(ticker)}"
+                 target="_blank" rel="noopener noreferrer"
+                 aria-label="{html.escape(ticker)}をYahoo!ファイナンスで見る"
+                 >{html.escape(ticker)}</a>
               <span class="nm">{html.escape(display_name(ticker))}{weak}</span>
               {bar(sig, vmax)}
               <span class="sg">{sig:+.3f}</span>
@@ -393,6 +414,9 @@ ul {{ list-style:none; padding:0; margin:0; }}
 .hlist {{ list-style:none; padding:0; margin:2px 0 0; }}
 .hrow2 {{ display:grid; grid-template-columns:44px 1fr 60px; gap:8px;
   padding:4px 0; font-size:13px; }}
+.hrow2 {{ color:inherit; text-decoration:none; -webkit-touch-callout:default; }}
+.hrow2:active {{ background:var(--line); border-radius:5px; }}
+.hrow2 .hn {{ color:var(--accent); }}
 .hc {{ font-variant-numeric:tabular-nums; color:var(--muted); font-size:12px; }}
 .hn {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
 .hw {{ text-align:right; font-variant-numeric:tabular-nums; color:var(--muted); }}
@@ -404,6 +428,11 @@ details.more > summary::-webkit-details-marker {{ display:none; }}
 details.more > summary::after {{ content:" ›"; }}
 details.more[open] > summary::after {{ content:" ⌄"; }}
 .tk {{ font-variant-numeric:tabular-nums; font-size:12px; color:var(--muted); }}
+a.etflink {{ color:var(--accent); text-decoration:none; font-weight:600;
+  padding:11px 5px; margin:-11px -5px; border-radius:4px; }}
+a.etflink:active {{ background:var(--line); }}
+a:focus-visible, .rowsum:focus-visible {{ outline:2px solid var(--accent);
+  outline-offset:2px; border-radius:4px; }}
 .nm {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }}
 .sg {{ text-align:right; font-variant-numeric:tabular-nums; font-size:13px; }}
 .row.long .sg {{ color:var(--up); font-weight:600; }}
@@ -528,6 +557,11 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 
 <script>
 (function () {{
+  // 業種行の中のリンクを押したときは、折りたたみを開閉させずに遷移させる
+  document.querySelectorAll(".rowsum a").forEach(function (a) {{
+    a.addEventListener("click", function (e) {{ e.stopPropagation(); }});
+  }});
+
   var asof = new Date("{asof_iso}T21:00:00Z");
   var days = (Date.now() - asof.getTime()) / 86400000;
   if (days > 4) {{

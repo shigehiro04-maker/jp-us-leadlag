@@ -125,6 +125,8 @@ def information_coefficient(panel: pd.DataFrame, bundle, exec_dates) -> dict:
         ok = r.notna()
         if ok.sum() > 5:
             ic.append(float(np.corrcoef(s[ok].rank(), r[ok].rank())[0, 1]))
+    # 断面が全て同値になる日（相関が定義できない）が実データでは出る。除く。
+    ic = [v for v in ic if np.isfinite(v)]
     if len(ic) < 10:
         return {"IC": np.nan, "IC_t": np.nan, "IC_N": len(ic)}
     x = np.asarray(ic)
@@ -183,6 +185,8 @@ def main() -> int:
     ap.add_argument("--lams", default="0.5,0.7,0.9,0.95")
     ap.add_argument("--ks", default="3,4,5")
     ap.add_argument("--costs", default="0,5,10,20")
+    ap.add_argument("--grid-halflives", default="なし,10",
+                    help="λ×K 表で使う半減期（'なし' で平滑化しない）")
     a = ap.parse_args()
     if not a.backtest_start:
         a.backtest_start = None
@@ -207,6 +211,10 @@ def main() -> int:
     lams = [float(x) for x in a.lams.split(",")]
     ks = [int(x) for x in a.ks.split(",")]
     costs = [float(x) for x in a.costs.split(",")]
+    grid_halflives: list[float | None] = [
+        None if x.strip() in ("なし", "none", "") else float(x)
+        for x in a.grid_halflives.split(",")
+    ]
 
     base = Params(backtest_start=a.backtest_start, **base_kwargs)
 
@@ -255,19 +263,21 @@ def main() -> int:
             except Exception as exc:                       # noqa: BLE001
                 _log(f"  K={k} λ={lam} 失敗: {exc}")
                 continue
-            for hl in (None, 5.0):
-                sig = smooth(pn.pca_sub, hl, standardize=True)
-                res = run_strategy(sig, bundle, pn.execution_date, p)
-                for plabel, (lo, hi) in PERIODS.items():
-                    sub = slice_returns(res, lo, hi)
-                    if len(sub.returns) < 30:
-                        continue
-                    grid_rows[(k, lam, "なし" if hl is None else hl, plabel)] = (
-                        stats(sub, p.ann_factor)
-                    )
+            for hl in grid_halflives:
+                sig = smooth(pn.pca_sub, hl, standardize=False)
+                for bps in costs:
+                    pc = Params(**{**base.to_dict(), "lam": lam,
+                                   "n_factors": k, "cost_bps": bps})
+                    res = run_strategy(sig, bundle, pn.execution_date, pc)
+                    for plabel, (lo, hi) in PERIODS.items():
+                        sub = slice_returns(res, lo, hi)
+                        if len(sub.returns) < 30:
+                            continue
+                        key = (k, lam, "なし" if hl is None else hl, bps, plabel)
+                        grid_rows[key] = stats(sub, pc.ann_factor)
             _log(f"  K={k} λ={lam} 完了")
     grid = pd.DataFrame(grid_rows).T.round(3)
-    grid.index.names = ["K", "lambda", "半減期", "期間"]
+    grid.index.names = ["K", "lambda", "半減期", "コストbp", "期間"]
     grid.to_csv(out / "grid.csv")
 
     # ----- 3. レポート -----
@@ -309,16 +319,31 @@ def main() -> int:
         .set_index(["標準化", "半減期"])[["回転率", "損益分岐bp", "AR", "MDD"]]
         .to_markdown(),
         "",
-        "## 5. λ × K（z化＋半減期5、期間別 R/R）",
+        "## 5. λ × K（平滑化なし・コスト 0bp、期間別 R/R）",
         "",
-        pivot(grid, "R/R", 半減期=5.0)
+        pivot(grid, "R/R", 半減期="なし", コストbp=0.0)
         .pivot(index=["K", "lambda"], columns="期間", values="R/R")
         .to_markdown(),
         "",
-        "## 6. λ × K（平滑化なし、期間別 R/R）",
+        "## 6. λ × K（平滑化なし・コスト 10bp、期間別 R/R）",
         "",
-        pivot(grid, "R/R", 半減期="なし")
+        pivot(grid, "R/R", 半減期="なし", コストbp=10.0)
         .pivot(index=["K", "lambda"], columns="期間", values="R/R")
+        .to_markdown(),
+        "",
+        "## 7. λ × K（半減期10・コスト 10bp、期間別 R/R）",
+        "",
+        "回転率を落としたうえで現実的なコストを引いた場合。ここが正でなければ"
+        "実際には運用できない。",
+        "",
+        pivot(grid, "R/R", 半減期=10.0, コストbp=10.0)
+        .pivot(index=["K", "lambda"], columns="期間", values="R/R")
+        .to_markdown(),
+        "",
+        "## 8. λ × K の損益分岐コスト（片道 bps、全期間、半減期10）",
+        "",
+        pivot(grid, "損益分岐bp", 半減期=10.0, コストbp=0.0, 期間="全期間")
+        .pivot(index="K", columns="lambda", values="損益分岐bp")
         .to_markdown(),
         "",
     ]

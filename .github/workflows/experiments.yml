@@ -1,0 +1,77 @@
+name: 改善案の検証
+
+# 手動実行専用。本番モデルは変更せず、平滑化・λ・K の効果だけを測る。
+on:
+  workflow_dispatch:
+    inputs:
+      halflives:
+        description: "平滑化の半減期 (カンマ区切り、日)"
+        required: false
+        default: "1,2,3,5,10,20"
+      lams:
+        description: "λ の候補 (カンマ区切り)"
+        required: false
+        default: "0.5,0.7,0.9,0.95"
+      ks:
+        description: "K の候補 (カンマ区切り)"
+        required: false
+        default: "3,4,5"
+      costs:
+        description: "取引コストの候補 (片道 bps、カンマ区切り)"
+        required: false
+        default: "0,5,10,20"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: experiments
+  cancel-in-progress: false
+
+jobs:
+  experiments:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: 依存関係をインストール
+        run: pip install -r requirements.txt
+
+      - name: 補助関数のテスト
+        run: python -m pytest tests/test_experiments.py -q
+
+      - name: 合成データでスクリプトの健全性を確認
+        run: |
+          python scripts/run_experiments.py --outdir /tmp/smoke --synthetic 900 \
+            --halflives 5 --lams 0.9 --ks 3 --costs 0 > /dev/null
+
+      - name: 実データで検証
+        run: |
+          set -o pipefail
+          mkdir -p results_exp
+          python scripts/run_experiments.py \
+            --outdir results_exp \
+            --halflives "${{ inputs.halflives }}" \
+            --lams "${{ inputs.lams }}" \
+            --ks "${{ inputs.ks }}" \
+            --costs "${{ inputs.costs }}" 2>&1 | tee results_exp/run.log
+
+      - name: 結果をコミット
+        run: |
+          git config user.name  "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -f results_exp
+          if git diff --staged --quiet; then
+            echo "変更なし"
+          else
+            git commit -m "experiments: $(date -u +%Y-%m-%d) の検証結果"
+            git pull --rebase
+            git push
+          fi

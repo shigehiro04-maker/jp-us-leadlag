@@ -1,94 +1,59 @@
-[04:21:46] 価格データを取得中…
-[04:21:51] 共通営業日 3956 日 (2010-01-04 〜 2026-09-04)
-[04:21:51] 1/3 平滑化の効果…
+[04:39:05] 価格データを取得中…
+[04:39:08] 共通営業日 3956 日 (2010-01-04 〜 2026-09-04)
+[04:39:08] 1/3 平滑化の効果…
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
 シグナル生成: 2015-01-05 〜 2026-09-03 (2771 日)
-[04:22:34]   素/HL=なし 完了
+[04:39:51]   素/HL=なし 完了
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
-[04:22:52]   素/HL=1.0 完了
+[04:40:09]   素/HL=3.0 完了
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
-[04:23:09]   素/HL=2.0 完了
+[04:40:27]   素/HL=5.0 完了
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
-[04:23:27]   素/HL=3.0 完了
+[04:40:44]   素/HL=10.0 完了
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
-[04:23:44]   素/HL=5.0 完了
+[04:41:02]   z化/HL=なし 完了
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
-[04:24:02]   素/HL=10.0 完了
+[04:41:20]   z化/HL=3.0 完了
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
-[04:24:20]   素/HL=20.0 完了
+[04:41:37]   z化/HL=5.0 完了
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
   c /= stddev[:, None]
 /opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
   c /= stddev[None, :]
-[04:24:37]   z化/HL=なし 完了
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[:, None]
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[None, :]
-[04:24:55]   z化/HL=1.0 完了
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[:, None]
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[None, :]
-[04:25:12]   z化/HL=2.0 完了
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[:, None]
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[None, :]
-[04:25:30]   z化/HL=3.0 完了
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[:, None]
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[None, :]
-[04:25:47]   z化/HL=5.0 完了
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[:, None]
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[None, :]
-[04:26:05]   z化/HL=10.0 完了
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3036: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[:, None]
-/opt/hostedtoolcache/Python/3.12.14/x64/lib/python3.12/site-packages/numpy/lib/_function_base_impl.py:3037: RuntimeWarning: invalid value encountered in divide
-  c /= stddev[None, :]
-[04:26:22]   z化/HL=20.0 完了
-[04:26:22] 2/3 λ × K を期間別に…
-[04:26:54]   K=3 λ=0.3 完了
-[04:27:25]   K=3 λ=0.5 完了
-[04:27:57]   K=3 λ=0.7 完了
-[04:28:29]   K=3 λ=0.9 完了
-[04:29:00]   K=3 λ=0.95 完了
-[04:29:32]   K=4 λ=0.3 完了
-[04:30:04]   K=4 λ=0.5 完了
-[04:30:35]   K=4 λ=0.7 完了
-[04:31:07]   K=4 λ=0.9 完了
-[04:31:38]   K=4 λ=0.95 完了
-[04:32:10]   K=5 λ=0.3 完了
-[04:32:41]   K=5 λ=0.5 完了
-[04:33:13]   K=5 λ=0.7 完了
-[04:33:45]   K=5 λ=0.9 完了
-[04:34:16]   K=5 λ=0.95 完了
-[04:34:16] 3/3 レポート…
+[04:41:55]   z化/HL=10.0 完了
+[04:41:55] 2/3 λ × K を期間別に…
+[04:42:49]   K=3 λ=0.1 完了
+[04:43:44]   K=3 λ=0.3 完了
+[04:44:38]   K=3 λ=0.5 完了
+[04:45:32]   K=3 λ=0.7 完了
+[04:46:26]   K=3 λ=0.9 完了
+[04:47:20]   K=4 λ=0.1 完了
+[04:48:15]   K=4 λ=0.3 完了
+[04:49:10]   K=4 λ=0.5 完了
+[04:50:04]   K=4 λ=0.7 完了
+[04:50:59]   K=4 λ=0.9 完了
+[04:50:59] 3/3 レポート…
 
 # 改善案の検証
 
@@ -100,59 +65,41 @@
 
 `abs_rho_mean` が 1 に近く `flip_share` が 50% 付近なら、「同じ 1 本の軸の符号が毎日ひっくり返っている」状態。
 
-|            |   rho_mean |   abs_rho_mean |   flip_share(%) |    N |   IC |   IC_t |   IC_N |
-|:-----------|-----------:|---------------:|----------------:|-----:|-----:|-------:|-------:|
-| 素/HL=なし    |      0.031 |          0.882 |          48.592 | 2770 |  nan |    nan |   2771 |
-| 素/HL=1.0   |      0.367 |          0.887 |          31.769 | 2770 |  nan |    nan |   2771 |
-| 素/HL=2.0   |      0.532 |          0.897 |          23.249 | 2770 |  nan |    nan |   2771 |
-| 素/HL=3.0   |      0.629 |          0.904 |          18.556 | 2770 |  nan |    nan |   2771 |
-| 素/HL=5.0   |      0.719 |          0.913 |          13.791 | 2770 |  nan |    nan |   2771 |
-| 素/HL=10.0  |      0.814 |          0.924 |           8.953 | 2770 |  nan |    nan |   2771 |
-| 素/HL=20.0  |      0.88  |          0.937 |           5.523 | 2770 |  nan |    nan |   2771 |
-| z化/HL=なし   |      0.031 |          0.882 |          48.592 | 2770 |  nan |    nan |   2771 |
-| z化/HL=1.0  |      0.155 |          0.795 |          43.935 | 2770 |  nan |    nan |   2771 |
-| z化/HL=2.0  |      0.456 |          0.791 |          26.209 | 2770 |  nan |    nan |   2771 |
-| z化/HL=3.0  |      0.572 |          0.802 |          20.144 | 2770 |  nan |    nan |   2771 |
-| z化/HL=5.0  |      0.678 |          0.83  |          14.079 | 2770 |  nan |    nan |   2771 |
-| z化/HL=10.0 |      0.79  |          0.855 |           7.365 | 2770 |  nan |    nan |   2771 |
-| z化/HL=20.0 |      0.873 |          0.884 |           2.166 | 2770 |  nan |    nan |   2771 |
+|            |   rho_mean |   abs_rho_mean |   flip_share(%) |    N |    IC |   IC_t |   IC_N |
+|:-----------|-----------:|---------------:|----------------:|-----:|------:|-------:|-------:|
+| 素/HL=なし    |      0.031 |          0.882 |          48.592 | 2770 | 0.038 |  6.462 |   2759 |
+| 素/HL=3.0   |      0.629 |          0.904 |          18.556 | 2770 | 0.026 |  4.4   |   2759 |
+| 素/HL=5.0   |      0.719 |          0.913 |          13.791 | 2770 | 0.022 |  3.766 |   2759 |
+| 素/HL=10.0  |      0.814 |          0.924 |           8.953 | 2770 | 0.021 |  3.517 |   2759 |
+| z化/HL=なし   |      0.031 |          0.882 |          48.592 | 2770 | 0.038 |  6.462 |   2759 |
+| z化/HL=3.0  |      0.572 |          0.802 |          20.144 | 2770 | 0.018 |  3.069 |   2759 |
+| z化/HL=5.0  |      0.678 |          0.83  |          14.079 | 2770 | 0.011 |  1.871 |   2759 |
+| z化/HL=10.0 |      0.79  |          0.855 |           7.329 | 2770 | 0.006 |  1.097 |   2759 |
 
 ## 2. 平滑化の効果（コスト 0bp、期間別）
 
 |              |   2024〜 |   2026〜 |   〜2023 |   全期間 |
 |:-------------|--------:|--------:|--------:|------:|
-| ('z化', 1.0)  |  -0.552 |  -3.447 |   2.769 | 1.797 |
-| ('z化', 2.0)  |  -0.654 |  -3.435 |   2.107 | 1.318 |
-| ('z化', 3.0)  |  -0.484 |  -3.006 |   1.578 | 0.984 |
+| ('z化', 3.0)  |  -0.484 |  -3.006 |   1.579 | 0.984 |
 | ('z化', 5.0)  |  -0.872 |  -3.576 |   1.062 | 0.517 |
-| ('z化', 10.0) |  -0.548 |  -2.184 |   0.506 | 0.212 |
-| ('z化', 20.0) |  -0.577 |  -2.527 |   0.71  | 0.35  |
+| ('z化', 10.0) |  -0.548 |  -2.184 |   0.507 | 0.213 |
 | ('z化', 'なし') |  -0.457 |  -3.079 |   2.663 | 1.742 |
-| ('素', 1.0)   |  -0.71  |  -4.042 |   2.768 | 1.706 |
-| ('素', 2.0)   |  -0.39  |  -3.029 |   2.099 | 1.366 |
 | ('素', 3.0)   |  -0.445 |  -2.312 |   1.994 | 1.278 |
-| ('素', 5.0)   |  -0.24  |  -1.228 |   1.867 | 1.236 |
+| ('素', 5.0)   |  -0.24  |  -1.228 |   1.871 | 1.24  |
 | ('素', 10.0)  |  -0.368 |  -0.925 |   1.659 | 1.065 |
-| ('素', 20.0)  |  -0.296 |  -1.333 |   1.091 | 0.689 |
 | ('素', 'なし')  |  -0.457 |  -3.079 |   2.663 | 1.742 |
 
 ## 3. 平滑化の効果（現実的なコスト 10bp、期間別 R/R）
 
 |              |   2024〜 |   2026〜 |   〜2023 |    全期間 |
 |:-------------|--------:|--------:|--------:|-------:|
-| ('z化', 1.0)  |  -4.06  |  -6.26  |  -2.14  | -2.649 |
-| ('z化', 2.0)  |  -3.218 |  -5.896 |  -1.395 | -1.887 |
-| ('z化', 3.0)  |  -2.66  |  -5.226 |  -1.382 | -1.726 |
+| ('z化', 3.0)  |  -2.66  |  -5.226 |  -1.381 | -1.725 |
 | ('z化', 5.0)  |  -2.744 |  -5.588 |  -1.402 | -1.76  |
-| ('z化', 10.0) |  -1.832 |  -3.435 |  -1.417 | -1.521 |
-| ('z化', 20.0) |  -1.51  |  -3.381 |  -0.817 | -1.002 |
+| ('z化', 10.0) |  -1.832 |  -3.435 |  -1.416 | -1.52  |
 | ('z化', 'なし') |  -4.053 |  -5.861 |  -2.489 | -2.898 |
-| ('素', 1.0)   |  -3.222 |  -6.203 |  -0.94  | -1.588 |
-| ('素', 2.0)   |  -2.373 |  -4.846 |  -0.751 | -1.205 |
 | ('素', 3.0)   |  -2.162 |  -3.996 |  -0.385 | -0.889 |
-| ('素', 5.0)   |  -1.55  |  -2.682 |  -0.109 | -0.524 |
+| ('素', 5.0)   |  -1.55  |  -2.682 |  -0.105 | -0.521 |
 | ('素', 10.0)  |  -1.42  |  -1.905 |   0.256 | -0.226 |
-| ('素', 20.0)  |  -1.151 |  -1.942 |   0.033 | -0.302 |
 | ('素', 'なし')  |  -4.053 |  -5.861 |  -2.489 | -2.898 |
 
 ## 4. 回転率と損益分岐コスト（全期間）
@@ -160,58 +107,66 @@
 |              |   回転率 |   損益分岐bp |     AR |    MDD |
 |:-------------|------:|---------:|-------:|-------:|
 | ('素', 'なし')  | 2.17  |    3.671 | 20.077 | 39.729 |
-| ('素', 1.0)   | 1.502 |    5.108 | 19.337 | 44.66  |
-| ('素', 2.0)   | 1.169 |    5.266 | 15.51  | 35.798 |
 | ('素', 3.0)   | 0.971 |    5.864 | 14.343 | 32.179 |
-| ('素', 5.0)   | 0.794 |    7.003 | 14.004 | 19.918 |
+| ('素', 5.0)   | 0.794 |    7.021 | 14.041 | 19.918 |
 | ('素', 10.0)  | 0.574 |    8.244 | 11.921 | 22.604 |
-| ('素', 20.0)  | 0.435 |    6.946 |  7.616 | 29.088 |
 | ('z化', 'なし') | 2.17  |    3.671 | 20.077 | 39.729 |
-| ('z化', 1.0)  | 2.006 |    3.952 | 19.972 | 38.633 |
-| ('z化', 2.0)  | 1.446 |    4.057 | 14.782 | 38.327 |
-| ('z化', 3.0)  | 1.218 |    3.582 | 10.995 | 34.966 |
+| ('z化', 3.0)  | 1.218 |    3.585 | 11.002 | 34.966 |
 | ('z化', 5.0)  | 1     |    2.237 |  5.637 | 37.439 |
-| ('z化', 10.0) | 0.754 |    1.21  |  2.3   | 26.082 |
-| ('z化', 20.0) | 0.583 |    2.576 |  3.785 | 28.381 |
+| ('z化', 10.0) | 0.754 |    1.215 |  2.308 | 26.082 |
 
-## 5. λ × K（z化＋半減期5、期間別 R/R）
+## 5. λ × K（平滑化なし・コスト 0bp、期間別 R/R）
 
-|           |   2024〜 |   2026〜 |   〜2023 |    全期間 |
-|:----------|--------:|--------:|--------:|-------:|
-| (3, 0.3)  |   0.348 |   0.896 |   0.464 |  0.423 |
-| (3, 0.5)  |   0.175 |   0.317 |   0.718 |  0.551 |
-| (3, 0.7)  |  -0.462 |  -2.268 |   1.417 |  0.869 |
-| (3, 0.9)  |  -0.872 |  -3.576 |   1.062 |  0.517 |
-| (3, 0.95) |  -0.676 |  -2.461 |   1.087 |  0.581 |
-| (4, 0.3)  |  -0.831 |  -1.966 |   0.212 | -0.093 |
-| (4, 0.5)  |  -1.11  |  -2.198 |   0.631 |  0.137 |
-| (4, 0.7)  |  -0.619 |  -2.382 |   0.679 |  0.3   |
-| (4, 0.9)  |  -0.087 |  -1.709 |   0.534 |  0.35  |
-| (4, 0.95) |  -0.006 |  -1.953 |   0.497 |  0.35  |
-| (5, 0.3)  |  -1.019 |  -3.153 |   0.382 | -0.011 |
-| (5, 0.5)  |  -1.181 |  -2.707 |   0.811 |  0.254 |
-| (5, 0.7)  |  -0.936 |  -3.034 |   0.749 |  0.275 |
-| (5, 0.9)  |  -1.102 |  -1.9   |   0.461 |  0.035 |
-| (5, 0.95) |  -0.994 |  -2.474 |   0.475 |  0.075 |
+|          |   2024〜 |   2026〜 |   〜2023 |   全期間 |
+|:---------|--------:|--------:|--------:|------:|
+| (3, 0.1) |   1.28  |   0.529 |   0.75  | 0.895 |
+| (3, 0.3) |   0.878 |   0.256 |   1.022 | 0.959 |
+| (3, 0.5) |   1.058 |   0.271 |   1.731 | 1.491 |
+| (3, 0.7) |  -0.107 |  -1.595 |   2.973 | 1.979 |
+| (3, 0.9) |  -0.457 |  -3.079 |   2.663 | 1.742 |
+| (4, 0.1) |   0.106 |  -0.95  |   0.639 | 0.476 |
+| (4, 0.3) |  -0.238 |  -2.058 |   0.879 | 0.541 |
+| (4, 0.5) |  -0.054 |  -3.185 |   1.444 | 0.992 |
+| (4, 0.7) |   0.642 |  -3.173 |   1.455 | 1.194 |
+| (4, 0.9) |   0.654 |  -2.065 |   1.271 | 1.063 |
 
-## 6. λ × K（平滑化なし、期間別 R/R）
+## 6. λ × K（平滑化なし・コスト 10bp、期間別 R/R）
 
-|           |   2024〜 |   2026〜 |   〜2023 |   全期間 |
-|:----------|--------:|--------:|--------:|------:|
-| (3, 0.3)  |   0.878 |   0.256 |   1.022 | 0.959 |
-| (3, 0.5)  |   1.058 |   0.271 |   1.723 | 1.485 |
-| (3, 0.7)  |  -0.107 |  -1.595 |   2.974 | 1.98  |
-| (3, 0.9)  |  -0.457 |  -3.079 |   2.663 | 1.742 |
-| (3, 0.95) |  -0.446 |  -3.729 |   2.634 | 1.718 |
-| (4, 0.3)  |  -0.238 |  -2.058 |   0.875 | 0.538 |
-| (4, 0.5)  |  -0.054 |  -3.185 |   1.448 | 0.995 |
-| (4, 0.7)  |   0.647 |  -3.173 |   1.455 | 1.196 |
-| (4, 0.9)  |   0.654 |  -2.065 |   1.271 | 1.063 |
-| (4, 0.95) |   0.773 |  -1.737 |   1.206 | 1.055 |
-| (5, 0.3)  |   0.301 |  -1.202 |   0.626 | 0.52  |
-| (5, 0.5)  |   0.493 |  -1.542 |   1.162 | 0.957 |
-| (5, 0.7)  |   0.564 |  -2.177 |   1.194 | 1.01  |
-| (5, 0.9)  |   0.618 |  -1.159 |   1.085 | 0.951 |
-| (5, 0.95) |   0.386 |  -1.164 |   1.042 | 0.856 |
+|          |   2024〜 |   2026〜 |   〜2023 |    全期間 |
+|:---------|--------:|--------:|--------:|-------:|
+| (3, 0.1) |  -3.214 |  -2.663 |  -5.93  | -5.045 |
+| (3, 0.3) |  -3.426 |  -2.528 |  -5.58  | -4.836 |
+| (3, 0.5) |  -2.891 |  -2.358 |  -4.586 | -3.994 |
+| (3, 0.7) |  -3.702 |  -4.254 |  -2.586 | -2.87  |
+| (3, 0.9) |  -4.053 |  -5.861 |  -2.489 | -2.898 |
+| (4, 0.1) |  -5.1   |  -4.666 |  -6.582 | -6.08  |
+| (4, 0.3) |  -5.327 |  -5.499 |  -6.262 | -5.917 |
+| (4, 0.5) |  -4.971 |  -6.665 |  -5.246 | -5.11  |
+| (4, 0.7) |  -3.965 |  -6.611 |  -5.078 | -4.684 |
+| (4, 0.9) |  -3.723 |  -5.182 |  -5.075 | -4.59  |
 
-[04:34:16] 完了: /home/runner/work/jp-us-leadlag/jp-us-leadlag/results_exp
+## 7. λ × K（半減期10・コスト 10bp、期間別 R/R）
+
+回転率を落としたうえで現実的なコストを引いた場合。ここが正でなければ実際には運用できない。
+
+|          |   2024〜 |   2026〜 |   〜2023 |    全期間 |
+|:---------|--------:|--------:|--------:|-------:|
+| (3, 0.1) |  -0.573 |  -0.797 |  -1.718 | -1.378 |
+| (3, 0.3) |  -0.534 |  -1.26  |  -1.548 | -1.235 |
+| (3, 0.5) |  -1.078 |  -1.491 |  -1.027 | -1.029 |
+| (3, 0.7) |  -1.292 |  -2.153 |  -0.06  | -0.421 |
+| (3, 0.9) |  -1.42  |  -1.905 |   0.256 | -0.226 |
+| (4, 0.1) |  -1.887 |  -2.33  |  -1.958 | -1.918 |
+| (4, 0.3) |  -2.063 |  -2.643 |  -1.498 | -1.642 |
+| (4, 0.5) |  -1.888 |  -3.862 |  -1.323 | -1.469 |
+| (4, 0.7) |  -1.114 |  -2.055 |  -1.239 | -1.19  |
+| (4, 0.9) |  -0.799 |  -1.405 |  -1.34  | -1.168 |
+
+## 8. λ × K の損益分岐コスト（片道 bps、全期間、半減期10）
+
+|   K |    0.1 |    0.3 |   0.5 |   0.7 |   0.9 |
+|----:|-------:|-------:|------:|------:|------:|
+|   3 |  1.223 |  2.188 | 3.146 | 6.892 | 8.244 |
+|   4 | -1.197 | -0.436 | 0.62  | 2.625 | 2.824 |
+
+[04:50:59] 完了: /home/runner/work/jp-us-leadlag/jp-us-leadlag/results_exp

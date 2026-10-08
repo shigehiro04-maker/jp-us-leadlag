@@ -7,6 +7,12 @@ set -e
 REPO="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 LABEL="com.shigeno.jp-us-leadlag"
 PLIST="$HOME/Library/LaunchAgents/$LABEL.plist"
+case "$REPO" in
+  "$HOME/Documents"*|"$HOME/Desktop"*|"$HOME/Downloads"*)
+    echo "launchd からは ~/Documents・~/Desktop・~/Downloads の中を読めません（macOS の保護）。" >&2
+    echo "ホーム直下に clone して、そこから実行してください: git clone <URL> ~/jp-us-leadlag" >&2
+    exit 1;;
+esac
 mkdir -p "$HOME/Library/LaunchAgents" "$REPO/logs"
 ENTRIES=""
 for wd in 1 2 3 4 5; do

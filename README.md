@@ -36,6 +36,8 @@ pytest tests/ -q
 
 Mac の launchd が平日 7:30 / 8:30（予想）と 16:30（採点）に `scripts/publish_from_mac.sh` を実行し、
 結果を 1 枚の HTML として GitHub Pages に公開します（登録: `bash scripts/install_mac_schedule.sh`）。
+自動実行用の clone は `~/jp-us-leadlag`（ホーム直下）に置いています。launchd は macOS の保護により
+`~/Documents` などの中を読めないためです。
 GitHub Actions の定時実行は混雑で数時間遅れ、寄付き後になることが多かったため 2026-10 に切り替えました。
 Actions は Mac が止まっていた日の予備として 10:30 JST に 1 回だけ動きます（寄付き前に出た予想は上書きしません）。iPhone の Safari でホーム画面に追加すればアプリのように開けます。手順は **[SETUP_iPhone.md](SETUP_iPhone.md)** を参照してください。
 

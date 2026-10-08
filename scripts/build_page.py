@@ -615,6 +615,18 @@ PAGE = """<!DOCTYPE html>
 <meta name="theme-color" content="#0b1020">
 <title>日米リードラグ {asof}</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230b1020'/%3E%3Cpath d='M28 120 L64 84 L96 104 L152 52' stroke='%2360a5fa' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='152' cy='52' r='13' fill='%23f87171'/%3E%3C/svg%3E">
+<script>
+// 東証株分析（同じ github.io）と明暗の設定を共有する（localStorage 'fdb-theme'）
+(function () {{
+  var d = document.documentElement;
+  function apply(t) {{
+    if (t === "dark" || t === "light") d.setAttribute("data-theme", t); else d.removeAttribute("data-theme");
+  }}
+  try {{ apply(localStorage.getItem("fdb-theme")); }} catch (e) {{}}
+  try {{ if (window.top !== window.self) d.classList.add("embed"); }} catch (e) {{ d.classList.add("embed"); }}
+  window.addEventListener("storage", function (e) {{ if (e.key === "fdb-theme") apply(e.newValue); }});
+}})();
+</script>
 <style>
 :root {{
   --bg:#f6f7fb; --card:#fff; --fg:#14161c; --muted:#6b7280; --line:#e5e7eb;
@@ -623,10 +635,15 @@ PAGE = """<!DOCTYPE html>
   --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
 }}
 @media (prefers-color-scheme:dark) {{
-  :root {{ --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
+  :root:not([data-theme="light"]) {{ --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
     --up:#2dd4bf; --down:#f87171; --accent:#60a5fa;
     --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500; }}
 }}
+:root[data-theme="dark"] {{ --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
+    --up:#2dd4bf; --down:#f87171; --accent:#60a5fa;
+    --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500; }}
+/* 東証株分析の中に埋め込まれたとき（leadlag.html の iframe）は、上の余白を詰める */
+html.embed body {{ padding-top:8px; }}
 * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
 body {{
   margin:0; background:var(--bg); color:var(--fg);

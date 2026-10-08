@@ -191,6 +191,20 @@ details:not([open]) > summary > .tri { transform:rotate(-90deg); }
 details.subfold { border-top:1px solid var(--line); margin-top:12px; padding-top:10px; }
 summary.fh3 { font-size:13px; font-weight:700; }
 details.subfold[open] > summary.fh3 { margin-bottom:6px; }
+.moodword { font-size:28px; font-weight:800; letter-spacing:-.01em; margin:0; line-height:1.25; }
+.moodword.down { color:var(--down); } .moodword.up { color:var(--up); } .moodword.flat-dir { color:var(--fg); }
+.scale { position:relative; margin:30px 2px 4px; }
+.scale .ptr { position:absolute; top:-24px; transform:translateX(-50%); font-size:11px; color:var(--fg);
+  white-space:nowrap; display:flex; flex-direction:column; align-items:center; line-height:1.1; }
+.scale .segs { display:flex; gap:2px; }
+.scale .segs i { flex:1; height:12px; border-radius:3px; opacity:.35; }
+.scale .segs i.on { opacity:1; outline:2px solid var(--fg); outline-offset:1px; }
+.scale .s0 { background:var(--down); } .scale .s1 { background:color-mix(in srgb, var(--down) 55%, var(--line)); }
+.scale .s2 { background:var(--muted); } .scale .s3 { background:color-mix(in srgb, var(--up) 55%, var(--line)); }
+.scale .s4 { background:var(--up); }
+.scale .ticks { position:relative; height:14px; font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }
+.scale .ticks span { position:absolute; top:2px; transform:translateX(-50%); }
+.scale .ends { display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:2px; }
 .mrow { padding:8px 0; border-bottom:1px solid var(--line); }
 .mrow:last-child { border-bottom:0; }
 .mname { font-size:13px; font-weight:600; margin:0 0 2px; }
@@ -215,32 +229,30 @@ footer { font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0;
 </header>
 
 <details class="card fold" open data-k="mood">
-  <summary class="fh"><h2>日中の地合い</h2><span class="tri" aria-hidden="true">▼</span></summary>
-  <div class="dir">
-    <span class="word bias">売り優位</span>
+  <summary class="fh"><h2>今日の日中（寄付き→大引け）の地合い</h2><span class="tri" aria-hidden="true">▼</span></summary>
+  <p class="moodword up">いつもより下げにくい</p>
+  <p class="meta" style="margin-top:4px">日本株は寄付き後に下がる日が多く、過去250営業日の
+     寄付き→大引けは平均 <b>-8bp</b>（55%の日が下落）。
+     前夜の米国11業種（平均 <b>-0.56%</b>）から見た今日の予測は <b>0bp</b> です。</p>
+  <div class="scale" role="img" aria-label="下押し圧力の目盛り: いつもより下げにくい">
+    <span class="ptr" style="left:87.5%"><b>今日</b>▼</span>
+    <div class="segs"><i class="s0"></i><i class="s1"></i><i class="s2"></i><i class="s3"></i><i class="s4 on"></i></div>
+    <div class="ticks"><span style="left:20%">-15</span><span style="left:40%">-11</span><span style="left:60%">-7</span><span style="left:80%">-2</span></div>
+    <div class="ends"><span>← 下げやすい</span><span>いつも並み</span><span>下げにくい →</span></div>
+    <p class="meta small" style="margin-top:2px">目盛りの数字は区切りの予測値（bp、1bp=0.01%）</p>
   </div>
-  <div class="strengthline">
-    <span class="lbl">下押し圧力</span>
-    <span class="pct st1">弱い</span>
-  </div>
-  <div class="meter"><i class="on"></i><i class="off"></i><i class="off"></i><i class="off"></i><i class="off"></i></div>
-  <p class="meta">
-     翌日の東京EW日中の予測 <b>+0bp</b> ・
-     過去250営業日の日中平均 <b>-8bp</b>（うち下落 55%）・
-     当日の米国11業種 等ウェイト <b>-0.56%</b>
-  </p>
-  <p class="meta small">
-     日本株のリターンはほぼ夜間（前日大引け→翌日寄付き）に発生し、日中は恒常的に
-     マイナスです。このモデルは上がるか下がるかを当てるものではなく、
-     <b>その下押し圧力が過去と比べて強いか弱いか</b>を見るものです。
-     強弱は過去250営業日の予測値の分布の五分位で判定しています。
-     「弱い」は上昇に転じるという意味ではありません。
-  </p>
+  <details>
+    <summary>この目盛りの見方</summary>
+    <p class="meta small">下押し圧力（寄付き後の売られやすさ）の強弱です。過去250営業日に
+       このモデルが出した予測値を低い順に5等分し、今日の予測がどこに入るかを示しています
+       （区切りの数字は予測値・bp）。上がるか下がるかを当てるものではなく、
+       右端の「下げにくい」でも上昇するという意味ではありません。</p>
+  </details>
 </details>
 
 <details class="card fold" open data-k="rank">
   <summary class="fh"><h2>業種ランキング（相対の強弱）</h2><span class="tri" aria-hidden="true">▼</span></summary>
-  <p class="meta" style="margin-top:0">モデル: <b>業種対応 SCS</b>（対応する米国業種ETFの当日リターン%）・10/08 14:34 寄付き後に作成（参考扱い）</p>
+  <p class="meta" style="margin-top:0">モデル: <b>業種対応 SCS</b>（対応する米国業種ETFの当日リターン%）・10/08 14:42 寄付き後に作成（参考扱い）</p>
   <p class="label l">▲ ロング（強いと予想）</p>
   <ul>
       <li class="rowwrap">
@@ -590,7 +602,7 @@ footer { font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0;
 
 
 <footer>
-  生成: 2026-10-08 14:34 JST　/　取得できたデータの最終日: 米国 2026-10-07・日本 2026-10-08<br>
+  生成: 2026-10-08 14:42 JST　/　取得できたデータの最終日: 米国 2026-10-07・日本 2026-10-08<br>
   構成銘柄: 野村アセットマネジメント「組入全銘柄情報」（月次）・全1635銘柄を収録<br>
   中川 慧ほか「部分空間正則化付き主成分分析を用いた日米業種リードラグ投資戦略」
   (SIG-FIN-036-13)、金谷・吉田「日米リード・ラグ戦略のための業種対応シグナル」

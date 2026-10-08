@@ -319,23 +319,25 @@ def model_perf_html(history: list[dict]) -> str:
         '<p class="meta">寄付き前公開の開始より前の日は、各日の米国終値までのデータで'
         '後から計算した参考値です（このページで寄付き前に出していた予想ではありません）。</p>'
         if any(r.get("backfilled") for r in recs) else "")
-    return f"""<div class="tiles">{"".join(tiles)}</div>
-  <h3 class="h3">累積リターン（ロング5−ショート5、寄付き→大引け）</h3>
-  {viz.legend(names)}
+    def sub(title, body, key, opened=False):
+        op = " open" if opened else ""
+        return (f'<details class="subfold"{op} data-k="{key}"><summary class="fh3">{title}'
+                f'<span class="tri" aria-hidden="true">▼</span></summary>{body}</details>')
+    cum_body = f"""{viz.legend(names)}
   {viz.cumulative_chart(dates, series, live_start)}
-  {backfill_note}
-  <h3 class="h3">寄付きで先に織り込まれていないか</h3>
-  <p class="meta" style="margin-top:0">同じ予想を「寄付き→大引け」（取れる部分）と「前日大引け→寄付き」
-     （寄付きの時点ですでに動いた部分）で測った合計。右の斜線が大きく左が小さいほど、先回りされています。</p>
-  {viz.split_bars(st_all)}
-  <h3 class="h3">前回の答え合わせ（{last["exec_date"]}・業種別の寄付き→大引け）</h3>
-  <p class="meta" style="margin-top:0">{last_ls}</p>
-  {viz.answer_check(last)}
-  <details>
-    <summary>日別の実績（ロング−ショート %、直近20日）</summary>
-    {viz.legend(names)}
-    {viz.daily_table(recs, names)}
-  </details>
+  {backfill_note}"""
+    split_body = f"""<p class="meta" style="margin-top:0">同じ予想を「寄付き→大引け」（取れる部分）と「前日大引け→寄付き」
+     （寄付きの時点ですでに動いた部分）で測った合計。下の斜線が大きく上が小さいほど、先回りされています。</p>
+  {viz.split_bars(st_all)}"""
+    ans_body = f"""<p class="meta" style="margin-top:0">{last_ls}</p>
+  {viz.answer_check(last)}"""
+    daily_body = f"""{viz.legend(names)}
+    {viz.daily_table(recs, names)}"""
+    return f"""<div class="tiles">{"".join(tiles)}</div>
+  {sub("累積リターン（ロング5−ショート5、寄付き→大引け）", cum_body, "cum", True)}
+  {sub("寄付きで先に織り込まれていないか", split_body, "split")}
+  {sub(f"前回の答え合わせ（{last['exec_date']}・業種別の寄付き→大引け）", ans_body, "ans")}
+  {sub("日別の実績（ロング−ショート %、直近20日）", daily_body, "daily")}
   <p class="meta">取引コスト控除前。実際に運用した記録ではなく、予想をその日の実現リターンで採点したものです。</p>"""
 
 
@@ -689,6 +691,19 @@ table.heat td {{ text-align:right; padding:3px 5px; border-radius:4px; }}
 td.hp {{ background:color-mix(in srgb, var(--up) calc(var(--a) * 100%), transparent); }}
 td.hn {{ background:color-mix(in srgb, var(--down) calc(var(--a) * 100%), transparent); }}
 .mut {{ color:var(--muted); }}
+details.card {{ margin-top:0; }}
+details.fold > summary.fh, details.subfold > summary.fh3 {{ display:flex; align-items:center; justify-content:space-between;
+  cursor:pointer; list-style:none; color:inherit; padding:0; }}
+details.fold > summary.fh::-webkit-details-marker, details.subfold > summary.fh3::-webkit-details-marker {{ display:none; }}
+details.fold > summary.fh::after, details.subfold > summary.fh3::after {{ content:none; }}
+details.fold > summary.fh h2 {{ margin:0; }}
+details.fold[open] > summary.fh {{ margin-bottom:12px; }}
+.tri {{ font-size:11px; color:var(--muted); transition:transform .15s; margin-left:8px; }}
+details:not([open]) > summary > .tri {{ transform:rotate(-90deg); }}
+@media (prefers-reduced-motion:reduce) {{ .tri {{ transition:none; }} }}
+details.subfold {{ border-top:1px solid var(--line); margin-top:12px; padding-top:10px; }}
+summary.fh3 {{ font-size:13px; font-weight:700; }}
+details.subfold[open] > summary.fh3 {{ margin-bottom:6px; }}
 .mrow {{ padding:8px 0; border-bottom:1px solid var(--line); }}
 .mrow:last-child {{ border-bottom:0; }}
 .mname {{ font-size:13px; font-weight:600; margin:0 0 2px; }}
@@ -712,8 +727,8 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   <p class="sub">NY {asof} 終値時点の情報にもとづく（寄付き→大引け）</p>
 </header>
 
-<section class="card">
-  <h2>日中の地合い</h2>
+<details class="card fold" open data-k="mood">
+  <summary class="fh"><h2>日中の地合い</h2><span class="tri" aria-hidden="true">▼</span></summary>
   <div class="dir">
     <span class="word bias">{bias}</span>
   </div>
@@ -734,10 +749,10 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
      強弱は過去{n_train}営業日の予測値の分布の五分位で判定しています。
      「弱い」は上昇に転じるという意味ではありません。
   </p>
-</section>
+</details>
 
-<section class="card">
-  <h2>業種ランキング（相対の強弱）</h2>
+<details class="card fold" open data-k="rank">
+  <summary class="fh"><h2>業種ランキング（相対の強弱）</h2><span class="tri" aria-hidden="true">▼</span></summary>
   <p class="meta" style="margin-top:0">モデル: <b>{main_label}</b>（対応する米国業種ETFの当日リターン%）・{created} {pre_open_note}</p>
   <p class="label l">▲ ロング（強いと予想）</p>
   <ul>
@@ -753,17 +768,17 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 {mid_rows}
     </ul>
   </details>
-</section>
+</details>
 
-<section class="card">
-  <h2>前夜の米国11業種（{asof}）</h2>
+<details class="card fold" data-k="us">
+  <summary class="fh"><h2>前夜の米国11業種（{asof}）</h2><span class="tri" aria-hidden="true">▼</span></summary>
   <p class="meta" style="margin-top:0">右は、その動きを受け取る日本の業種（業種対応 SCS の対応表）。</p>
   {us_chart}
   <p class="meta">部分空間正則化PCAの共通ファクター {f_scores}</p>
-</section>
+</details>
 
-<section class="card">
-  <h2>モデル別の予想</h2>
+<details class="card fold" data-k="models">
+  <summary class="fh"><h2>モデル別の予想</h2><span class="tri" aria-hidden="true">▼</span></summary>
   <p class="meta" style="margin-top:0">▲ロング（強い）・▼ショート（弱い）。右端は4モデルのうち何モデルが同じ向きか。
      並びは3モデル合成のスコア順。</p>
   {grid_html}
@@ -775,16 +790,16 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   </details>
   <p class="meta">部分空間正則化PCAは論文公開（2026/3/19）後に寄付きで先回りされ、
      3〜7月に大きく崩れました（検証レポート参照）。</p>
-</section>
+</details>
 
-<section class="card">
-  <h2>モデル別の成績</h2>
+<details class="card fold" open data-k="perf">
+  <summary class="fh"><h2>モデル別の成績</h2><span class="tri" aria-hidden="true">▼</span></summary>
   {perf_html}
   <p class="meta"><b>検証メモ（2026-10）:</b> 2015〜2025年はSCS R/R 3.96・PCA_SUB 2.37と良好でしたが、
      論文公開後（3/19〜7/23）にPCA_SUBは −35.8%。同じ予想で前日大引け→寄付きを測ると
      公開後に大きく増えており、寄付きで先に織り込まれています。損益分岐は片道
      2.6bp（PCA_SUB）〜4.0bp（SCS）。詳細は results/verification_2026-10/ を参照。</p>
-</section>
+</details>
 
 
 <footer>
@@ -803,6 +818,15 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   // 業種行の中のリンクを押したときは、折りたたみを開閉させずに遷移させる
   document.querySelectorAll(".rowsum a").forEach(function (a) {{
     a.addEventListener("click", function (e) {{ e.stopPropagation(); }});
+  }});
+
+  // 折りたたみの開閉を端末ごとに覚えておく
+  document.querySelectorAll("details[data-k]").forEach(function (d) {{
+    var k = "fold:" + d.getAttribute("data-k");
+    try {{ var v = localStorage.getItem(k); if (v !== null) d.open = (v === "1"); }} catch (e) {{}}
+    d.addEventListener("toggle", function () {{
+      try {{ localStorage.setItem(k, d.open ? "1" : "0"); }} catch (e) {{}}
+    }});
   }});
 
   var el = document.getElementById("stale");

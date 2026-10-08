@@ -33,7 +33,8 @@ from leadlag.engine import LeadLagEngine                    # noqa: E402
 from leadlag.holdings import SOURCE_PAGE                     # noqa: E402
 from leadlag.holdings import refresh as refresh_holdings     # noqa: E402
 from leadlag.models import (MAIN_MODEL, MODEL_LABEL, MODEL_ORDER,  # noqa: E402
-                            all_models, select_long_short)
+                            all_models, select_long_short, us_return_on)
+from leadlag import viz                                       # noqa: E402
 
 JST = timezone(timedelta(hours=9))
 
@@ -62,43 +63,51 @@ def resolve_history(history: list[dict], bundle) -> list[dict]:
     共通営業日のままにしてある。
     """
     jp_oc = bundle.jp_oc_all if bundle.jp_oc_all is not None else bundle.jp_oc
+    jp_co = getattr(bundle, "jp_co_all", None)
     dates = jp_oc.index
+    now = datetime.now(JST)
     for rec in history:
-        if rec.get("resolved"):
+        # 採点済みでも、モデル別の採点や業種別の実績がまだ無いものは埋める
+        # （後から追加したモデルを過去分に再計算した記録など）
+        need_models = any("ls_return" not in m for m in (rec.get("models") or {}).values())
+        if rec.get("resolved") and not need_models and "actual_oc" in rec:
             continue
-        asof = pd.Timestamp(rec["asof"])
-        later = dates[dates > asof]
-        if len(later) == 0:
-            continue
-        exec_date = later[0]
+        if rec.get("exec_date"):
+            exec_date = pd.Timestamp(rec["exec_date"])
+            if exec_date not in dates:
+                continue
+        else:
+            asof = pd.Timestamp(rec["asof"])
+            later = dates[dates > asof]
+            if len(later) == 0:
+                continue
+            exec_date = later[0]
         # 当日の立会中は提供元が途中経過のバーを返すので、大引け後まで採点しない
-        now = datetime.now(JST)
         if exec_date.date() >= now.date() and (now.hour, now.minute) < (15, 45):
             continue
         row = jp_oc.loc[exec_date]
-        longs = [t for t in rec["long"] if t in row.index and np.isfinite(row[t])]
-        shorts = [t for t in rec["short"] if t in row.index and np.isfinite(row[t])]
-        if not longs or not shorts:
-            continue
-        mkt = float(row.dropna().mean())
-        ls = float(row[longs].mean() - row[shorts].mean())
-        # 上下の的中は記録しない。日中リターンは恒常的にマイナスで、符号を
-        # 当てたかどうかは戦略の良し悪しをほとんど表さないため
-        # (詳細は leadlag/direction.py の注記)。実現値そのものを残す。
-        rec.update(
-            {
+        co_row = jp_co.loc[exec_date] if jp_co is not None and exec_date in jp_co.index else None
+        if not rec.get("resolved"):
+            longs = [t for t in rec["long"] if t in row.index and np.isfinite(row[t])]
+            shorts = [t for t in rec["short"] if t in row.index and np.isfinite(row[t])]
+            if not longs or not shorts:
+                continue
+            # 上下の的中は記録しない。日中リターンは恒常的にマイナスで、符号を
+            # 当てたかどうかは戦略の良し悪しをほとんど表さないため
+            # (詳細は leadlag/direction.py の注記)。実現値そのものを残す。
+            rec.update({
                 "resolved": True,
                 "exec_date": str(exec_date.date()),
-                "ls_return": ls,
-                "market_return": mkt,
-            }
-        )
+                "ls_return": float(row[longs].mean() - row[shorts].mean()),
+                "market_return": float(row.dropna().mean()),
+            })
+        # 業種別の実績（答え合わせの図に使う）
+        rec["actual_oc"] = {t: round(float(v), 6) for t, v in row.items() if np.isfinite(v)}
+        if co_row is not None:
+            rec["actual_co"] = {t: round(float(v), 6) for t, v in co_row.items() if np.isfinite(v)}
         # モデル別の採点。寄付き→大引け (ls) と、同じ選択で測った
         # 前日大引け→寄付き (ls_overnight)。後者が大きく前者が小さいときは、
         # 予想が寄付きの時点で先に織り込まれている (2026-10 検証参照)。
-        co_row = None
-        if getattr(bundle, "jp_co_all", None) is not None and exec_date in bundle.jp_co_all.index:
-            co_row = bundle.jp_co_all.loc[exec_date]
         for m in (rec.get("models") or {}).values():
             lo = [t for t in m["long"] if t in row.index and np.isfinite(row[t])]
             sh = [t for t in m["short"] if t in row.index and np.isfinite(row[t])]
@@ -268,33 +277,66 @@ def model_compare_html(models_rec: dict) -> str:
 
 
 def model_perf_html(history: list[dict]) -> str:
-    """モデル別の採点結果（寄付き前に作成した予想だけを集計）。"""
-    stats = []
-    for m in MODEL_ORDER:
-        rs, on = [], []
-        for h in history:
-            if not h.get("resolved") or not h.get("pre_open", False):
-                continue
-            mm = (h.get("models") or {}).get(m)
-            if mm and "ls_return" in mm:
-                rs.append(mm["ls_return"])
-                if "ls_overnight" in mm:
-                    on.append(mm["ls_overnight"])
-        if not rs:
-            continue
-        cum = (np.prod([1 + r for r in rs]) - 1) * 100
-        win = np.mean([r > 0 for r in rs]) * 100
-        onv = f"{np.sum(on)*100:+.1f}%" if on else "—"
-        stats.append(f'<tr><td>{html.escape(MODEL_LABEL.get(m, m))}</td><td>{len(rs)}</td>'
-                     f'<td class="{"pos" if cum >= 0 else "neg"}">{cum:+.1f}%</td>'
-                     f'<td>{win:.0f}%</td><td>{onv}</td></tr>')
-    if not stats:
-        return '<p class="meta">モデル別の採点は、寄付き前に作成した予想がたまり次第ここに出ます。</p>'
-    return ('<table class="perf"><tr><th>モデル</th><th>日数</th><th>累積</th><th>勝率</th>'
-            '<th>夜間側</th></tr>' + "".join(stats) + '</table>'
-            '<p class="meta">寄付き前に作成した予想だけを集計（取引コスト控除前）。'
-            '「夜間側」は同じ選択で前日大引け→寄付きを測った合計。ここが大きく累積が小さい'
-            'ときは、寄付きの時点で先に織り込まれています。</p>')
+    """モデル別の成績: 指標タイル・累積の折れ線・夜間/日中の比較・答え合わせ・日別の表。"""
+    recs = [h for h in history if h.get("resolved") and h.get("models")
+            and any("ls_return" in m for m in h["models"].values())]
+    if not recs:
+        return '<p class="meta">モデル別の実績は、予想の翌営業日の大引け後から表示されます。</p>'
+    names = [m for m in MODEL_ORDER if any(m in r["models"] for r in recs)]
+    live = [r for r in recs if r.get("pre_open")]
+    live_start = live[0]["exec_date"] if live else None
+
+    def agg(rs, m):
+        x = [r["models"][m]["ls_return"] for r in rs if m in r["models"] and "ls_return" in r["models"][m]]
+        on = [r["models"][m]["ls_overnight"] for r in rs if m in r["models"] and "ls_overnight" in r["models"][m]]
+        if not x:
+            return None
+        return {"name": m, "n": len(x), "cum": (np.prod([1 + v for v in x]) - 1) * 100,
+                "win": np.mean([v > 0 for v in x]) * 100, "intraday": float(np.sum(x)) * 100,
+                "overnight": float(np.sum(on)) * 100 if on else None}
+
+    st_all = [a for a in (agg(recs, m) for m in names) if a]
+    st_live = {a["name"]: a for a in (agg(live, m) for m in names) if a}
+    tiles = []
+    for a in st_all:
+        lv = st_live.get(a["name"])
+        lv_txt = (f'寄付き前公開 {lv["n"]}日 {lv["cum"]:+.2f}%' if lv else "寄付き前公開 まだなし")
+        main = ' <span class="weak">メイン</span>' if a["name"] == MAIN_MODEL else ""
+        tiles.append(
+            f'<div class="tile"><p class="tn"><i class="sw m{viz.model_color_index(a["name"])}"></i>'
+            f'{html.escape(MODEL_LABEL.get(a["name"], a["name"]))}{main}</p>'
+            f'<p class="tv {"up" if a["cum"] >= 0 else "down"}">{a["cum"]:+.1f}%</p>'
+            f'<p class="tk2">累積 {a["n"]}日・勝率 {a["win"]:.0f}%</p><p class="tk2">{lv_txt}</p></div>')
+
+    dates = [r["exec_date"] for r in recs]
+    series = {m: [r["models"].get(m, {}).get("ls_return") for r in recs] for m in names}
+    last = recs[-1]
+    last_ls = " ・ ".join(
+        f'{html.escape(MODEL_LABEL.get(m, m))} <b class="{"up" if last["models"][m]["ls_return"] >= 0 else "down"}">'
+        f'{last["models"][m]["ls_return"]*100:+.2f}%</b>'
+        for m in names if "ls_return" in last["models"].get(m, {}))
+    backfill_note = (
+        '<p class="meta">寄付き前公開の開始より前の日は、各日の米国終値までのデータで'
+        '後から計算した参考値です（このページで寄付き前に出していた予想ではありません）。</p>'
+        if any(r.get("backfilled") for r in recs) else "")
+    return f"""<div class="tiles">{"".join(tiles)}</div>
+  <h3 class="h3">累積リターン（ロング5−ショート5、寄付き→大引け）</h3>
+  {viz.legend(names)}
+  {viz.cumulative_chart(dates, series, live_start)}
+  {backfill_note}
+  <h3 class="h3">寄付きで先に織り込まれていないか</h3>
+  <p class="meta" style="margin-top:0">同じ予想を「寄付き→大引け」（取れる部分）と「前日大引け→寄付き」
+     （寄付きの時点ですでに動いた部分）で測った合計。右の斜線が大きく左が小さいほど、先回りされています。</p>
+  {viz.split_bars(st_all)}
+  <h3 class="h3">前回の答え合わせ（{last["exec_date"]}・業種別の寄付き→大引け）</h3>
+  <p class="meta" style="margin-top:0">{last_ls}</p>
+  {viz.answer_check(last)}
+  <details>
+    <summary>日別の実績（ロング−ショート %、直近20日）</summary>
+    {viz.legend(names)}
+    {viz.daily_table(recs, names)}
+  </details>
+  <p class="meta">取引コスト控除前。実際に運用した記録ではなく、予想をその日の実現リターンで採点したものです。</p>"""
 
 
 # ---------------------------------------------------------------------------
@@ -373,15 +415,7 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     else:
         created_str = now_jst.strftime("%m/%d %H:%M")
 
-    done = [h for h in history if h.get("resolved")]
-    recent = done[-60:]
-    cum = [1.0]
-    intraday = []
-    for h in recent:
-        cum.append(cum[-1] * (1 + h["ls_return"]))
-        intraday.append(h["market_return"])
-    ls_total = (cum[-1] - 1) * 100 if len(cum) > 1 else float("nan")
-    intraday_avg = 1e4 * float(np.mean(intraday)) if intraday else float("nan")
+    recent = [h for h in history if h.get("resolved")]
 
     vmax = float(np.abs(sig.to_numpy()).max()) or 1.0
     us_z = pd.Series(res.z_us, index=res.us_tickers).sort_values(ascending=False)
@@ -410,23 +444,16 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     mid_rows = "\n".join(row_html(t, disp[t], mvmax, "-", holdings.get(t)) for t in mid)
     compare_html = model_compare_html(models_rec)
     perf_html = model_perf_html(history)
-    us_rows = "\n".join(
-        f'      <li class="row plain {"long" if v >= 0 else "short"}">'
-        f'<span class="tk">{t}</span>'
-        f'<span class="nm">{html.escape(display_name(t))}</span>'
-        f'{bar(float(v), float(np.abs(us_z).max()) or 1.0)}'
-        f'<span class="sg">{v:+.2f}</span></li>'
-        for t, v in us_z.items()
-    )
+    # 前夜の米国 11 業種の騰落（SCS がそのまま使う値）
+    try:
+        us_today = {t: float(v) for t, v in us_return_on(bundle, asof).items()}
+    except KeyError:
+        us_today = {}
+    us_chart = viz.us_sector_chart(us_today)
+    grid_order = list(pd.Series(models_rec.get("合成", main)["signals"])
+                      .sort_values(ascending=False, kind="stable").index)
+    grid_html = viz.agreement_grid(models_rec, grid_order)
 
-    hist_rows = "\n".join(
-        f'      <li class="hrow"><span class="hd">{h["exec_date"][5:]}</span>'
-        f'<span class="hv {"pos" if h["ls_return"] >= 0 else "neg"}">'
-        f'{h["ls_return"]*100:+.2f}%</span>'
-        f'<span class="hv {"pos" if h["market_return"] >= 0 else "neg"}">'
-        f'{h["market_return"]*1e4:+.0f}bp</span></li>'
-        for h in reversed(recent[-15:])
-    )
 
     # データの鮮度。提供元が当日ぶんをまだ埋めていないと asof が 1 日古くなるので、
     # どの日付まで取得できていたかをページと実行ログの両方に残す。
@@ -457,12 +484,6 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         long_rows=long_rows,
         short_rows=short_rows,
         mid_rows=mid_rows,
-        us_rows=us_rows,
-        hist_rows=hist_rows or '<li class="hrow"><span class="hd">まだ履歴がありません</span></li>',
-        spark=sparkline(cum) if len(cum) > 2 else "",
-        intraday_avg=f"{intraday_avg:+.0f}bp" if intraday else "—",
-        ls_total=f"{ls_total:+.1f}%" if len(cum) > 1 else "—",
-        n_hist=len(recent),
         f_scores=", ".join(f"f{i+1}={v:+.2f}" for i, v in enumerate(res.factor_scores)),
         generated=generated,
         asof_iso=asof.date().isoformat(),
@@ -471,6 +492,8 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         jp_last=jp_last,
         holdings_src=holdings_src,
         compare_html=compare_html,
+        us_chart=us_chart,
+        grid_html=grid_html,
         perf_html=perf_html,
         main_label=MODEL_LABEL.get(MAIN_MODEL, MAIN_MODEL),
         created=created_str,
@@ -501,11 +524,13 @@ PAGE = """<!DOCTYPE html>
 :root {{
   --bg:#f6f7fb; --card:#fff; --fg:#14161c; --muted:#6b7280; --line:#e5e7eb;
   --up:#0d9488; --down:#dc2626; --accent:#2563eb;
+  --m0:#2a78d6; --m1:#eb6834; --m2:#1baf7a; --m3:#c98500;
   --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
 }}
 @media (prefers-color-scheme:dark) {{
   :root {{ --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
-    --up:#2dd4bf; --down:#f87171; --accent:#60a5fa; }}
+    --up:#2dd4bf; --down:#f87171; --accent:#60a5fa;
+    --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500; }}
 }}
 * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
 body {{
@@ -613,6 +638,57 @@ details[open] > summary:not(.rowsum)::after {{ content:" ⌄"; }}
 .hv {{ text-align:right; font-variant-numeric:tabular-nums; }}
 .hv.pos {{ color:var(--up); }} .hv.neg {{ color:var(--down); }}
 .hm {{ text-align:right; color:var(--muted); }}
+.legend {{ display:flex; flex-wrap:wrap; gap:6px 14px; font-size:12px; color:var(--muted); margin:4px 0 6px; }}
+.lg {{ display:inline-flex; align-items:center; gap:5px; }}
+.sw {{ display:inline-block; width:10px; height:10px; border-radius:3px; vertical-align:-1px; margin-right:4px; }}
+.sw.m0, .dot.m0 {{ background:var(--m0); fill:var(--m0); }} .sw.m1, .dot.m1 {{ background:var(--m1); fill:var(--m1); }}
+.sw.m2, .dot.m2 {{ background:var(--m2); fill:var(--m2); }} .sw.m3, .dot.m3 {{ background:var(--m3); fill:var(--m3); }}
+.chart {{ width:100%; height:auto; display:block; margin:2px 0 6px; overflow:visible; }}
+.chart .ln {{ fill:none; stroke-width:2; stroke-linejoin:round; stroke-linecap:round; }}
+.chart .ln.m0 {{ stroke:var(--m0); stroke-width:2.6; }} .chart .ln.m1 {{ stroke:var(--m1); }}
+.chart .ln.m2 {{ stroke:var(--m2); }} .chart .ln.m3 {{ stroke:var(--m3); stroke-dasharray:4 3; }}
+.chart .gridl {{ stroke:var(--line); stroke-width:1; }} .chart .zero {{ stroke:var(--muted); stroke-width:1; opacity:.6; }}
+.chart .live {{ stroke:var(--muted); stroke-dasharray:3 3; }}
+.chart .ax {{ font-size:10px; fill:var(--muted); }} .chart .vl {{ font-size:10px; fill:var(--fg); }}
+.chart .hit {{ fill:transparent; }} .chart .hit:hover {{ fill:var(--line); }}
+.h3 {{ font-size:13px; font-weight:700; margin:18px 0 6px; }}
+.tiles {{ display:grid; grid-template-columns:1fr 1fr; gap:8px; }}
+.tile {{ border:1px solid var(--line); border-radius:12px; padding:9px 10px; }}
+.tile p {{ margin:0; }} .tn {{ font-size:12px; font-weight:600; }}
+.tv {{ font-size:22px; font-weight:800; font-variant-numeric:tabular-nums; margin:2px 0 !important; }}
+.tk2 {{ font-size:11px; color:var(--muted); }}
+.dvlist {{ list-style:none; padding:0; margin:4px 0; }}
+.dv {{ display:grid; grid-template-columns:92px 1fr 56px 44px; gap:6px; align-items:center; padding:3px 0; font-size:13px; }}
+.dl {{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }} .dl small {{ color:var(--muted); font-size:10px; }}
+.db {{ position:relative; display:block; height:10px; background:var(--line); border-radius:3px; }}
+.db i {{ position:absolute; top:0; height:10px; border-radius:3px; }}
+.db i.pos {{ background:var(--up); }} .db i.neg {{ background:var(--down); }}
+.db i.hatch {{ background-image:repeating-linear-gradient(45deg, rgba(255,255,255,.55) 0 2px, transparent 2px 5px); }}
+.dval {{ text-align:right; font-variant-numeric:tabular-nums; font-size:12px; }}
+.dvlist.below .dv {{ grid-template-columns:92px 1fr 56px; }}
+.dsub {{ grid-column:2 / -1; font-size:11px; color:var(--muted); margin-top:-2px; }}
+.dm {{ font-size:11px; color:var(--muted); white-space:nowrap; }} .to {{ font-size:11px; }}
+.tag {{ font-size:10px; font-weight:700; }}
+.sblist {{ list-style:none; padding:0; margin:4px 0; }}
+.sb {{ display:grid; grid-template-columns:96px 1fr 56px; gap:3px 6px; align-items:center; padding:6px 0;
+  border-bottom:1px solid var(--line); font-size:12px; }}
+.sb:last-child {{ border-bottom:0; }}
+.sbn {{ grid-column:1 / -1; font-weight:600; font-size:12px; }} .sbk {{ color:var(--muted); font-size:11px; }}
+.scroll {{ overflow-x:auto; }}
+table.grid {{ border-collapse:separate; border-spacing:2px; width:100%; font-size:12px; }}
+table.grid th {{ font-size:10px; color:var(--muted); font-weight:600; white-space:nowrap; padding:2px; }}
+table.grid th.gt {{ text-align:left; color:var(--fg); font-size:12px; font-weight:500; max-width:84px;
+  overflow:hidden; text-overflow:ellipsis; }}
+table.grid td {{ text-align:center; border-radius:5px; padding:4px 0; font-weight:700; }}
+td.gl {{ background:color-mix(in srgb, var(--up) 22%, transparent); color:var(--up); }}
+td.gs {{ background:color-mix(in srgb, var(--down) 22%, transparent); color:var(--down); }}
+td.gn {{ color:var(--muted); }} td.ga {{ font-size:11px; min-width:30px; }}
+table.heat {{ border-collapse:separate; border-spacing:2px; width:100%; font-size:12px; font-variant-numeric:tabular-nums; }}
+table.heat th {{ font-size:11px; color:var(--muted); font-weight:500; text-align:left; white-space:nowrap; }}
+table.heat td {{ text-align:right; padding:3px 5px; border-radius:4px; }}
+td.hp {{ background:color-mix(in srgb, var(--up) calc(var(--a) * 100%), transparent); }}
+td.hn {{ background:color-mix(in srgb, var(--down) calc(var(--a) * 100%), transparent); }}
+.mut {{ color:var(--muted); }}
 .mrow {{ padding:8px 0; border-bottom:1px solid var(--line); }}
 .mrow:last-child {{ border-bottom:0; }}
 .mname {{ font-size:13px; font-weight:600; margin:0 0 2px; }}
@@ -677,49 +753,39 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 {mid_rows}
     </ul>
   </details>
-  <details>
-    <summary>米国業種の当日ショック（窓内標準化 z）</summary>
-    <ul>
-{us_rows}
-    </ul>
-    <p class="meta">共通ファクター {f_scores}</p>
-  </details>
+</section>
+
+<section class="card">
+  <h2>前夜の米国11業種（{asof}）</h2>
+  <p class="meta" style="margin-top:0">右は、その動きを受け取る日本の業種（業種対応 SCS の対応表）。</p>
+  {us_chart}
+  <p class="meta">部分空間正則化PCAの共通ファクター {f_scores}</p>
 </section>
 
 <section class="card">
   <h2>モデル別の予想</h2>
-  <ul>
+  <p class="meta" style="margin-top:0">▲ロング（強い）・▼ショート（弱い）。右端は4モデルのうち何モデルが同じ向きか。
+     並びは3モデル合成のスコア順。</p>
+  {grid_html}
+  <details>
+    <summary>モデルごとの一覧で見る</summary>
+    <ul>
 {compare_html}
-  </ul>
-  <p class="meta">太字は全モデルが一致した業種。部分空間正則化PCAは論文公開（2026/3/19）後に
-     寄付きで先回りされ、3〜7月に大きく崩れました（検証レポート参照）。</p>
+    </ul>
+  </details>
+  <p class="meta">部分空間正則化PCAは論文公開（2026/3/19）後に寄付きで先回りされ、
+     3〜7月に大きく崩れました（検証レポート参照）。</p>
 </section>
 
 <section class="card">
   <h2>モデル別の成績</h2>
   {perf_html}
-</section>
-
-<section class="card">
-  <h2>直近の実績（部分空間正則化PCA・ロングショート）</h2>
-  <div class="stats">
-    <div class="stat"><div class="v">{ls_total}</div><div class="k">直近{n_hist}営業日 累積</div></div>
-    <div class="stat"><div class="v">{intraday_avg}</div><div class="k">日中EWの平均<br>（1日あたり）</div></div>
-  </div>
-  {spark}
-  <details>
-    <summary>日別の内訳（左=ロングショート、右=日中EW）</summary>
-    <ul>
-{hist_rows}
-    </ul>
-  </details>
-  <p class="meta">実際に運用した記録ではなく、毎朝このページが出した予想を
-     その日の実現リターンで後から採点したものです。取引コストは含みません。<br>
-     <b>検証メモ（2026-10）:</b> 2015〜2025年はSCS R/R 3.96・PCA_SUB 2.37と良好でしたが、
+  <p class="meta"><b>検証メモ（2026-10）:</b> 2015〜2025年はSCS R/R 3.96・PCA_SUB 2.37と良好でしたが、
      論文公開後（3/19〜7/23）にPCA_SUBは −35.8%。同じ予想で前日大引け→寄付きを測ると
      公開後に大きく増えており、寄付きで先に織り込まれています。損益分岐は片道
      2.6bp（PCA_SUB）〜4.0bp（SCS）。詳細は results/verification_2026-10/ を参照。</p>
 </section>
+
 
 <footer>
   生成: {generated}　/　取得できたデータの最終日: 米国 {us_last}・日本 {jp_last}<br>

@@ -619,10 +619,24 @@ PAGE = """<!DOCTYPE html>
 // 東証株分析（同じ github.io）と明暗の設定を共有する（localStorage 'fdb-theme'）
 (function () {{
   var d = document.documentElement;
+  var mq = window.matchMedia ? matchMedia("(prefers-color-scheme: dark)") : null;
+  function sync() {{   // 実際に暗い表示かどうか（スイッチのつまみの位置に使う）
+    var t = d.getAttribute("data-theme");
+    d.classList.toggle("dk", t ? t === "dark" : !!(mq && mq.matches));
+  }}
   function apply(t) {{
     if (t === "dark" || t === "light") d.setAttribute("data-theme", t); else d.removeAttribute("data-theme");
+    sync();
   }}
-  try {{ apply(localStorage.getItem("fdb-theme")); }} catch (e) {{}}
+  if (mq && mq.addEventListener) mq.addEventListener("change", sync);
+  document.addEventListener("click", function (e) {{
+    var b = e.target.closest && e.target.closest("#kbTheme");
+    if (!b) return;
+    var n = d.classList.contains("dk") ? "light" : "dark";
+    apply(n);
+    try {{ localStorage.setItem("fdb-theme", n); }} catch (err) {{}}
+  }});
+  try {{ apply(localStorage.getItem("fdb-theme")); }} catch (e) {{ sync(); }}
   try {{ if (window.top !== window.self) d.classList.add("embed"); }} catch (e) {{ d.classList.add("embed"); }}
   window.addEventListener("storage", function (e) {{ if (e.key === "fdb-theme") apply(e.newValue); }});
 }})();
@@ -632,16 +646,19 @@ PAGE = """<!DOCTYPE html>
   --bg:#f6f7fb; --card:#fff; --fg:#14161c; --muted:#6b7280; --line:#e5e7eb;
   --up:#0d9488; --down:#dc2626; --accent:#2563eb;
   --m0:#2a78d6; --m1:#eb6834; --m2:#1baf7a; --m3:#c98500;
+  --kbtrk:#e8e7e1; --kbknob:#fff; --kbico:#d08a00;
   --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
 }}
 @media (prefers-color-scheme:dark) {{
   :root:not([data-theme="light"]) {{ --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
     --up:#2dd4bf; --down:#f87171; --accent:#60a5fa;
-    --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500; }}
+    --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500;
+    --kbtrk:#2b2b29; --kbknob:#45453f; --kbico:#f3d36a; }}
 }}
 :root[data-theme="dark"] {{ --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
     --up:#2dd4bf; --down:#f87171; --accent:#60a5fa;
-    --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500; }}
+    --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500;
+    --kbtrk:#2b2b29; --kbknob:#45453f; --kbico:#f3d36a; }}
 /* 東証株分析の中に埋め込まれたとき（leadlag.html の iframe）は、上の余白を詰める */
 html.embed body {{ padding-top:8px; }}
 * {{ box-sizing:border-box; -webkit-tap-highlight-color:transparent; }}
@@ -828,6 +845,25 @@ details.subfold[open] > summary.fh3 {{ margin-bottom:6px; }}
 .scale .ticks {{ position:relative; height:14px; font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }}
 .scale .ticks span {{ position:absolute; top:2px; transform:translateX(-50%); }}
 .scale .ends {{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:2px; }}
+/* 明暗スイッチ（東証株分析と同じ見た目。設定は localStorage 'fdb-theme' を共有） */
+header {{ position:relative; }}
+.kb-theme {{ -webkit-appearance:none; appearance:none; position:absolute; top:0; right:0; width:54px; height:30px; padding:0;
+  border:1px solid var(--line); border-radius:15px; background:var(--kbtrk); cursor:pointer; overflow:hidden;
+  box-shadow:inset 0 1px 2px rgba(0,0,0,.08); -webkit-tap-highlight-color:transparent; transition:background .3s; }}
+.kb-theme:focus-visible {{ outline:2px solid var(--accent); outline-offset:2px; }}
+.kb-theme svg {{ display:block; width:100%; height:100%; }}
+.kb-trk {{ position:absolute; top:50%; width:13px; height:13px; margin-top:-6.5px; color:var(--muted); transition:opacity .3s; }}
+.kb-l {{ left:7px; opacity:0; }} .kb-r {{ right:7px; opacity:1; }}
+.kb-knob {{ position:absolute; top:2px; left:2px; width:24px; height:24px; border-radius:50%; background:var(--kbknob);
+  color:var(--kbico); box-shadow:0 1px 3px rgba(0,0,0,.25); transition:transform .32s cubic-bezier(.3,1.35,.5,1),background .3s; }}
+.kb-knob svg {{ position:absolute; inset:0; margin:auto; width:15px; height:15px; transition:opacity .25s,transform .35s; }}
+.kb-knob .kb-sun {{ opacity:1; }} .kb-knob .kb-moon {{ opacity:0; transform:rotate(-90deg) scale(.4); }}
+html.dk .kb-knob {{ transform:translateX(24px); }}
+html.dk .kb-knob .kb-sun {{ opacity:0; transform:rotate(90deg) scale(.4); }}
+html.dk .kb-knob .kb-moon {{ opacity:1; transform:none; }}
+html.dk .kb-l {{ opacity:1; }} html.dk .kb-r {{ opacity:0; }}
+@media (prefers-reduced-motion:reduce) {{ .kb-theme * {{ transition:none !important; }} }}
+header h1, header .date, header .sub {{ padding-right:64px; }}
 .mrow {{ padding:8px 0; border-bottom:1px solid var(--line); }}
 .mrow:last-child {{ border-bottom:0; }}
 .mname {{ font-size:13px; font-weight:600; margin:0 0 2px; }}
@@ -846,6 +882,7 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 <div class="stale" id="stale"></div>
 
 <header>
+  <button class="kb-theme" id="kbTheme" type="button" aria-label="明暗を切り替え（ライト／ダーク）" title="明暗を切り替え（ライト／ダーク）"><span class="kb-trk kb-l"><svg class="kb-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4.3"/><path d="M12 2.2v2.3M12 19.5v2.3M2.2 12h2.3M19.5 12h2.3M5.1 5.1l1.6 1.6M17.3 17.3l1.6 1.6M5.1 18.9l1.6-1.6M17.3 6.7l1.6-1.6"/></svg></span><span class="kb-trk kb-r"><svg class="kb-moon" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M20.2 14.6A8.4 8.4 0 0 1 9.4 3.8a.6.6 0 0 0-.8-.7A9.2 9.2 0 1 0 20.9 15.4a.6.6 0 0 0-.7-.8z"/></svg></span><span class="kb-knob"><svg class="kb-sun" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><circle cx="12" cy="12" r="4.3"/><path d="M12 2.2v2.3M12 19.5v2.3M2.2 12h2.3M19.5 12h2.3M5.1 5.1l1.6 1.6M17.3 17.3l1.6 1.6M5.1 18.9l1.6-1.6M17.3 6.7l1.6-1.6"/></svg><svg class="kb-moon" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><path d="M20.2 14.6A8.4 8.4 0 0 1 9.4 3.8a.6.6 0 0 0-.8-.7A9.2 9.2 0 1 0 20.9 15.4a.6.6 0 0 0-.7-.8z"/></svg></span></button>
   <h1>次の東京立会日の予想</h1>
   <p class="date">{next_session}</p>
   <p class="sub">NY {asof} 終値時点の情報にもとづく（寄付き→大引け）</p>

@@ -1,7 +1,7 @@
 {
  "asof": "2026-10-08",
  "target": "2026-10-09",
- "created": "10/09 08:14",
+ "created": "10/09 08:16",
  "pre_open": true,
  "main": "SCS",
  "main_label": "業種対応 SCS",
@@ -36,7 +36,7 @@
  "mood": {
   "word": "いつもよりやや下げやすい",
   "cls": "down",
-  "pred_bp": -12.714434788378382
+  "pred_bp": -12.714444192753689
  },
  "perf": {
   "SCS": {

@@ -6,7 +6,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="日米リードラグ">
-<meta name="theme-color" content="#0b1020">
+<meta name="theme-color" content="#000000">
 <title>日米リードラグ 2026-10-08</title>
 <link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 180 180'%3E%3Crect width='180' height='180' rx='40' fill='%230b1020'/%3E%3Cpath d='M28 120 L64 84 L96 104 L152 52' stroke='%2360a5fa' stroke-width='12' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3Ccircle cx='152' cy='52' r='13' fill='%23f87171'/%3E%3C/svg%3E">
 <script>
@@ -44,15 +44,15 @@
   --safe-t:env(safe-area-inset-top); --safe-b:env(safe-area-inset-bottom);
 }
 @media (prefers-color-scheme:dark) {
-  :root:not([data-theme="light"]) { --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
+  :root:not([data-theme="light"]) { --bg:#000000; --card:#0f0f10; --fg:#ecebe6; --muted:#8f8e88; --line:#232325;
     --up:#2dd4bf; --down:#f87171; --accent:#60a5fa;
     --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500;
-    --kbtrk:#2b2b29; --kbknob:#45453f; --kbico:#f3d36a; }
+    --kbtrk:#1c1c1d; --kbknob:#3a3a3c; --kbico:#f3d36a; }
 }
-:root[data-theme="dark"] { --bg:#0b1020; --card:#151a2d; --fg:#e8eaf2; --muted:#9aa3b8; --line:#252b42;
+:root[data-theme="dark"] { --bg:#000000; --card:#0f0f10; --fg:#ecebe6; --muted:#8f8e88; --line:#232325;
     --up:#2dd4bf; --down:#f87171; --accent:#60a5fa;
     --m0:#3987e5; --m1:#d95926; --m2:#199e70; --m3:#c98500;
-    --kbtrk:#2b2b29; --kbknob:#45453f; --kbico:#f3d36a; }
+    --kbtrk:#1c1c1d; --kbknob:#3a3a3c; --kbico:#f3d36a; }
 /* 東証株分析の中に埋め込まれたとき（leadlag.html の iframe）は、上の余白を詰める */
 html.embed body { padding-top:8px; }
 * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
@@ -306,7 +306,7 @@ footer { font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0;
 
 <details class="card fold" open data-k="rank">
   <summary class="fh"><h2>業種ランキング（相対の強弱）</h2><span class="tri" aria-hidden="true">▼</span></summary>
-  <p class="meta" style="margin-top:0">モデル: <b>業種対応 SCS</b>（対応する米国業種ETFの当日リターン%）・10/09 08:14 寄付き前に作成</p>
+  <p class="meta" style="margin-top:0">モデル: <b>業種対応 SCS</b>（対応する米国業種ETFの当日リターン%）・10/09 08:16 寄付き前に作成</p>
   <p class="label l">▲ ロング（強いと予想）</p>
   <ul>
       <li class="rowwrap">
@@ -656,7 +656,7 @@ footer { font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0;
 
 
 <footer>
-  生成: 2026-10-09 08:14 JST　/　取得できたデータの最終日: 米国 2026-10-08・日本 2026-10-08<br>
+  生成: 2026-10-09 08:16 JST　/　取得できたデータの最終日: 米国 2026-10-08・日本 2026-10-08<br>
   構成銘柄: 野村アセットマネジメント「組入全銘柄情報」（月次）・全1635銘柄を収録<br>
   中川 慧ほか「部分空間正則化付き主成分分析を用いた日米業種リードラグ投資戦略」
   (SIG-FIN-036-13)、金谷・吉田「日米リード・ラグ戦略のための業種対応シグナル」

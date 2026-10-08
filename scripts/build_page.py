@@ -239,6 +239,62 @@ def row_html(ticker: str, sig: float, vmax: float, tag: str,
       </li>"""
 
 
+MOOD_TEXT = {   # 下押し圧力の強弱 → 読み方
+    "強い": ("いつもより下げやすい", "down"),
+    "やや強い": ("いつもよりやや下げやすい", "down"),
+    "標準": ("いつも並み", "flat-dir"),
+    "やや弱い": ("いつもよりやや下げにくい", "up"),
+    "弱い": ("いつもより下げにくい", "up"),
+}
+
+
+def mood_html(md: dict) -> str:
+    """日中（寄付き→大引け）の地合いを、ふだんとの比較として見せる。
+
+    日本株は寄付き後に下がる日が多い（日中は恒常的にマイナス）。上がるか下がるかではなく、
+    「今日はふだんより下げやすいか・下げにくいか」を 5 段階の目盛りで示す。
+    """
+    from leadlag.direction import STRENGTH_LABELS
+    strength = md["strength"]
+    seg = STRENGTH_LABELS.index(strength)          # 0=下げやすい … 4=下げにくい
+    q = [x * 1e4 for x in md.get("quantiles") or []]
+    pred = md["pred"] * 1e4
+    # 目盛り上の位置（%）。中の区間は境界の値で按分し、両端の区間は隣の区間幅で按分する
+    if len(q) == 4:
+        edges = [q[0] - (q[1] - q[0]), *q, q[3] + (q[3] - q[2])]
+        lo, hi = edges[seg], edges[seg + 1]
+        frac = 0.5 if hi <= lo else min(max((pred - lo) / (hi - lo), 0.08), 0.92)
+    else:
+        frac = 0.5
+    pos = (seg + frac) * 20
+    word, cls = MOOD_TEXT[strength]
+    segs = "".join(f'<i class="s{k}{" on" if k == seg else ""}"></i>' for k in range(5))
+    ticks = "".join(f'<span style="left:{(k+1)*20}%">{v:+.0f}</span>' for k, v in enumerate(q)) if len(q) == 4 else ""
+    base = md["base_mean"] * 1e4
+
+    def bp(v):
+        return "0bp" if round(v) == 0 else f"{v:+.0f}bp"
+    lead = ("日本株は寄付き後に下がる日が多く、" if base < 0 and md["base_share_down"] > 0.5 else "")
+    return f"""<p class="moodword {cls}">{word}</p>
+  <p class="meta" style="margin-top:4px">{lead}過去{md["n_train"]}営業日の
+     寄付き→大引けは平均 <b>{bp(base)}</b>（{md["base_share_down"]*100:.0f}%の日が下落）。
+     前夜の米国11業種（平均 <b>{md["us_ew_cc"]*100:+.2f}%</b>）から見た今日の予測は <b>{bp(pred)}</b> です。</p>
+  <div class="scale" role="img" aria-label="下押し圧力の目盛り: {html.escape(word)}">
+    <span class="ptr" style="left:{pos:.1f}%"><b>今日</b>▼</span>
+    <div class="segs">{segs}</div>
+    <div class="ticks">{ticks}</div>
+    <div class="ends"><span>← 下げやすい</span><span>いつも並み</span><span>下げにくい →</span></div>
+    <p class="meta small" style="margin-top:2px">目盛りの数字は区切りの予測値（bp、1bp=0.01%）</p>
+  </div>
+  <details>
+    <summary>この目盛りの見方</summary>
+    <p class="meta small">下押し圧力（寄付き後の売られやすさ）の強弱です。過去{md["n_train"]}営業日に
+       このモデルが出した予測値を低い順に5等分し、今日の予測がどこに入るかを示しています
+       （区切りの数字は予測値・bp）。上がるか下がるかを当てるものではなく、
+       右端の「下げにくい」でも上昇するという意味ではありません。</p>
+  </details>"""
+
+
 def next_tokyo_session(asof: pd.Timestamp):
     """基準日 (米国の日付) の次の東京立会日。土日・祝日・年末年始 (12/31〜1/3) を飛ばす。"""
     try:
@@ -476,6 +532,7 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         bias=bias,
         strength=strength,
         strength_cls=strength_cls,
+        mood=mood_html(md),
         meter=meter,
         pred_bp=md["pred"] * 1e4,
         base_bp=md["base_mean"] * 1e4,
@@ -704,6 +761,20 @@ details:not([open]) > summary > .tri {{ transform:rotate(-90deg); }}
 details.subfold {{ border-top:1px solid var(--line); margin-top:12px; padding-top:10px; }}
 summary.fh3 {{ font-size:13px; font-weight:700; }}
 details.subfold[open] > summary.fh3 {{ margin-bottom:6px; }}
+.moodword {{ font-size:28px; font-weight:800; letter-spacing:-.01em; margin:0; line-height:1.25; }}
+.moodword.down {{ color:var(--down); }} .moodword.up {{ color:var(--up); }} .moodword.flat-dir {{ color:var(--fg); }}
+.scale {{ position:relative; margin:30px 2px 4px; }}
+.scale .ptr {{ position:absolute; top:-24px; transform:translateX(-50%); font-size:11px; color:var(--fg);
+  white-space:nowrap; display:flex; flex-direction:column; align-items:center; line-height:1.1; }}
+.scale .segs {{ display:flex; gap:2px; }}
+.scale .segs i {{ flex:1; height:12px; border-radius:3px; opacity:.35; }}
+.scale .segs i.on {{ opacity:1; outline:2px solid var(--fg); outline-offset:1px; }}
+.scale .s0 {{ background:var(--down); }} .scale .s1 {{ background:color-mix(in srgb, var(--down) 55%, var(--line)); }}
+.scale .s2 {{ background:var(--muted); }} .scale .s3 {{ background:color-mix(in srgb, var(--up) 55%, var(--line)); }}
+.scale .s4 {{ background:var(--up); }}
+.scale .ticks {{ position:relative; height:14px; font-size:10px; color:var(--muted); font-variant-numeric:tabular-nums; }}
+.scale .ticks span {{ position:absolute; top:2px; transform:translateX(-50%); }}
+.scale .ends {{ display:flex; justify-content:space-between; font-size:11px; color:var(--muted); margin-top:2px; }}
 .mrow {{ padding:8px 0; border-bottom:1px solid var(--line); }}
 .mrow:last-child {{ border-bottom:0; }}
 .mname {{ font-size:13px; font-weight:600; margin:0 0 2px; }}
@@ -728,27 +799,8 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 </header>
 
 <details class="card fold" open data-k="mood">
-  <summary class="fh"><h2>日中の地合い</h2><span class="tri" aria-hidden="true">▼</span></summary>
-  <div class="dir">
-    <span class="word bias">{bias}</span>
-  </div>
-  <div class="strengthline">
-    <span class="lbl">下押し圧力</span>
-    <span class="pct {strength_cls}">{strength}</span>
-  </div>
-  <div class="meter">{meter}</div>
-  <p class="meta">
-     翌日の東京EW日中の予測 <b>{pred_bp:+.0f}bp</b> ・
-     過去{n_train}営業日の日中平均 <b>{base_bp:+.0f}bp</b>（うち下落 {base_down:.0f}%）・
-     当日の米国11業種 等ウェイト <b>{us_ew:+.2f}%</b>
-  </p>
-  <p class="meta small">
-     日本株のリターンはほぼ夜間（前日大引け→翌日寄付き）に発生し、日中は恒常的に
-     マイナスです。このモデルは上がるか下がるかを当てるものではなく、
-     <b>その下押し圧力が過去と比べて強いか弱いか</b>を見るものです。
-     強弱は過去{n_train}営業日の予測値の分布の五分位で判定しています。
-     「弱い」は上昇に転じるという意味ではありません。
-  </p>
+  <summary class="fh"><h2>今日の日中（寄付き→大引け）の地合い</h2><span class="tri" aria-hidden="true">▼</span></summary>
+  {mood}
 </details>
 
 <details class="card fold" open data-k="rank">

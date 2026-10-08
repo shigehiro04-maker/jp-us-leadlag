@@ -80,11 +80,13 @@ def test_page_frames_intraday_as_sell_bias_not_direction(daily_pages):
     out, _ = daily_pages
     doc = (out / "index.html").read_text()
 
-    assert "日中の地合い" in doc
+    assert "日中（寄付き→大引け）の地合い" in doc
     assert "下押し圧力" in doc
+    assert "下げやすい" in doc and "下げにくい" in doc     # 目盛りの両端
     for banned in ("市場全体の方向", "方向予想", "方向の的中率"):
         assert banned not in doc, f"方向の当てものとしての表現が残っている: {banned}"
-    assert any(s in doc for s in ("強い", "やや強い", "標準", "やや弱い", "弱い"))
+    assert any(s in doc for s in ("いつもより下げやすい", "いつもよりやや下げやすい", "いつも並み",
+                                  "いつもよりやや下げにくい", "いつもより下げにくい"))
 
 
 def test_history_accumulates_and_resolves(daily_pages):

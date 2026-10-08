@@ -25,7 +25,7 @@ git pull -q --rebase --autostash origin main || { echo "pull に失敗"; exit 1;
 
 "$PY" scripts/build_page.py --outdir docs || { echo "ページ生成に失敗"; exit 1; }
 
-git add docs/index.html docs/history.json docs/holdings.json docs/.nojekyll
+git add docs/index.html docs/summary.json docs/history.json docs/holdings.json docs/.nojekyll
 if git diff --staged --quiet; then
   echo "変更なし"
 else

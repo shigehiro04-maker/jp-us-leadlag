@@ -85,3 +85,6 @@ def test_history_records_all_models_and_scores_them(tmp_path):
     assert "ls_return" in first["models"]["SCS"]
     doc = (tmp_path / "index.html").read_text()
     assert "モデル別の予想" in doc and "モデル別の成績" in doc
+    summ = json.loads((tmp_path / "summary.json").read_text())
+    assert summ["main"] == "SCS" and len(summ["long"]) == 5 and summ["mood"]["word"]
+    assert "SCS" in summ["perf"]

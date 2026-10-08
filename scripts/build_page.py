@@ -332,6 +332,39 @@ def model_compare_html(models_rec: dict) -> str:
     return "\n".join(rows)
 
 
+def summary_json(asof, next_session, models_rec, pre_open, created_str, md, history) -> dict:
+    """他のページ（東証株分析のトップなど）から読む要約。docs/summary.json に出す。"""
+    word, cls = MOOD_TEXT[md["strength"]]
+    main = models_rec.get(MAIN_MODEL) or {}
+    perf = {}
+    for m in MODEL_ORDER:
+        xs = [(h["models"][m]["ls_return"], bool(h.get("pre_open")))
+              for h in history if h.get("resolved") and "ls_return" in (h.get("models") or {}).get(m, {})]
+        if not xs:
+            continue
+        live = [r for r, p in xs if p]
+        perf[m] = {
+            "label": MODEL_LABEL.get(m, m),
+            "n": len(xs), "cum": float(np.prod([1 + r for r, _ in xs]) - 1),
+            "win": float(np.mean([r > 0 for r, _ in xs])),
+            "n_live": len(live), "cum_live": float(np.prod([1 + r for r in live]) - 1) if live else None,
+        }
+    last = next((h for h in reversed(history) if h.get("resolved") and h.get("models")), None)
+    return {
+        "asof": str(asof.date()), "target": str(next_session), "created": created_str,
+        "pre_open": bool(pre_open), "main": MAIN_MODEL, "main_label": MODEL_LABEL.get(MAIN_MODEL),
+        "long": [display_name(t) for t in main.get("long", [])],
+        "short": [display_name(t) for t in main.get("short", [])],
+        "long_codes": main.get("long", []), "short_codes": main.get("short", []),
+        "mood": {"word": word, "cls": cls, "pred_bp": md["pred"] * 1e4},
+        "perf": perf,
+        "last": ({"exec_date": last["exec_date"],
+                  "ls": {m: v["ls_return"] for m, v in last["models"].items() if "ls_return" in v}}
+                 if last else None),
+        "url": "https://shigehiro04-maker.github.io/jp-us-leadlag/",
+    }
+
+
 def model_perf_html(history: list[dict]) -> str:
     """モデル別の成績: 指標タイル・累積の折れ線・夜間/日中の比較・答え合わせ・日別の表。"""
     recs = [h for h in history if h.get("resolved") and h.get("models")
@@ -563,6 +596,9 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     (outdir / ".nojekyll").write_text("")
     path = outdir / "index.html"
     path.write_text(html_doc, encoding="utf-8")
+    (outdir / "summary.json").write_text(json.dumps(
+        summary_json(asof, next_session, models_rec, pre_open, created_str, md, history),
+        ensure_ascii=False, indent=1), encoding="utf-8")
     print(f"wrote {path} (asof {asof.date()}, {len(recent)} resolved history rows)")
     return path
 

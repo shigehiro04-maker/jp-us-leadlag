@@ -129,7 +129,7 @@ def cumulative_chart(dates: list[str], series: dict[str, list[float]],
     ticks = np.arange(np.ceil(lo / step) * step, hi + 1e-9, step)
     grid = "".join(
         f'<line x1="{padl}" x2="{padl+W}" y1="{Y(t):.1f}" y2="{Y(t):.1f}" class="{"zero" if abs(t) < 1e-9 else "gridl"}"/>'
-        f'<text x="{padl-4}" y="{Y(t)+3.5:.1f}" class="ax" text-anchor="end">{t:+.0f}%</text>'
+        f'<text x="{padl-4}" y="{Y(t)+3.5:.1f}" class="ax" text-anchor="end">{"0" if abs(t) < 1e-9 else f"{t:+.0f}"}%</text>'
         for t in ticks)
     xl = (f'<text x="{padl}" y="{height-6}" class="ax">{dates[0][5:]}</text>'
           f'<text x="{padl+W}" y="{height-6}" class="ax" text-anchor="end">{dates[-1][5:]}</text>')

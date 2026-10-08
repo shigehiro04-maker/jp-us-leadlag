@@ -2,14 +2,11 @@ name: 毎朝の予測ページを更新
 
 on:
   schedule:
-    # 日〜木(UTC) に動かすと 月〜金(JST) の朝になる。
-    # 22:30 UTC = 翌 07:30 JST（米国引けの 1.5〜2.5 時間後）
-    - cron: "30 22 * * 0-4"
-    # 23:30 UTC = 翌 08:30 JST（追いかけ実行）
-    # 1 回目の時点で提供元がまだ当日ぶんを配信していないことがあるため、
-    # 東京の寄付き前にもう一度だけ最新データで作り直す。同じ内容なら
-    # コミットは発生しない。
-    - cron: "30 23 * * 0-4"
+    # 2026-10 から公開の主役は Mac（scripts/publish_from_mac.sh、平日 7:30/8:30/16:30 JST）。
+    # GitHub の定時実行は混雑で数時間遅れ、寄付き後（10〜12 時台）になることが多かったため。
+    # ここは Mac が止まっていた日の予備として 1 日 1 回だけ動かす（10:30 JST）。
+    # 寄付き前に Mac が出した予想は上書きされない（build_page.append_today）。
+    - cron: "30 1 * * 1-5"
   workflow_dispatch:        # 手動実行用のボタン
 
 permissions:
@@ -47,6 +44,7 @@ jobs:
           if git diff --staged --quiet; then
             echo "変更なし"
           else
-            git commit -m "update: $(date -u +%Y-%m-%d) の予測"
+            git commit -m "update: $(date -u +%Y-%m-%d) の予測（予備）"
+            git pull --rebase origin main
             git push
           fi

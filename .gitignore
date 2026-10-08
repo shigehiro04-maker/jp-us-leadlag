@@ -5,3 +5,6 @@ data/
 output/
 output_synth/
 .DS_Store
+.venv/
+logs/
+_to_delete/

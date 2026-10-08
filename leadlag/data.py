@@ -78,6 +78,9 @@ class DataBundle:
     # 米国データは要らない。共通営業日を待つと米国側の配信遅れで採点が
     # 止まってしまうため、採点にはこちらを使う。
     jp_oc_all: pd.DataFrame | None = None
+    # 日本の前日大引け→当日寄付き (オーバーナイト) リターン (全東証営業日)。
+    # 予想が寄付きの時点ですでに織り込まれていないかを採点で見るために持つ。
+    jp_co_all: pd.DataFrame | None = None
     # 異常値として除去したリターンの一覧 (kind, date, ticker, value)
     quality_report: pd.DataFrame | None = None
 
@@ -214,11 +217,13 @@ def build_bundle(
     us_cc_full = us_close.pct_change()
     jp_cc_full = jp_close.pct_change()
     jp_oc_full = jp_close / jp_open - 1.0
+    jp_co_full = jp_open / jp_close.shift(1) - 1.0
 
     # 無料データに混じる異常値を取り除く（詳細は sanitize_returns を参照）
     us_cc_full, q1 = sanitize_returns(us_cc_full, max_abs_return, "us_cc")
     jp_cc_full, q2 = sanitize_returns(jp_cc_full, max_abs_return, "jp_cc")
     jp_oc_full, q3 = sanitize_returns(jp_oc_full, max_abs_return, "jp_oc")
+    jp_co_full, _ = sanitize_returns(jp_co_full, max_abs_return, "jp_co")
     quality = pd.concat([q1, q2, q3], ignore_index=True)
 
     common = us_close.index.intersection(jp_close.index)
@@ -236,6 +241,7 @@ def build_bundle(
         us_cc_ahead=(us_cc_full.loc[us_cc_full.index > common[-1]]
                      if len(common) else us_cc_full),
         jp_oc_all=jp_oc_full,
+        jp_co_all=jp_co_full,
         quality_report=quality,
     )
 

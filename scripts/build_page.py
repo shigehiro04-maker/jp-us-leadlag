@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """毎朝の予測を iPhone 向けの 1 枚の HTML にして docs/index.html に書き出す。
 
-GitHub Actions から毎営業日 22:00 UTC (= 翌 07:00 JST) に実行される想定。
+Mac の launchd から平日 7:30 / 8:30 JST（予想）と 16:30 JST（採点）に実行する
+（scripts/publish_from_mac.sh）。GitHub Actions の定時実行は数時間遅れて
+寄付き後になりがちなため、2026-10 に切り替えた。
 外部 CDN に依存しない自己完結の HTML を生成するため、機内モードでなければ
 どこからでも開ける。
 
@@ -30,6 +32,8 @@ from leadlag.direction import latest_direction              # noqa: E402
 from leadlag.engine import LeadLagEngine                    # noqa: E402
 from leadlag.holdings import SOURCE_PAGE                     # noqa: E402
 from leadlag.holdings import refresh as refresh_holdings     # noqa: E402
+from leadlag.models import (MAIN_MODEL, MODEL_LABEL, MODEL_ORDER,  # noqa: E402
+                            all_models, select_long_short)
 
 JST = timezone(timedelta(hours=9))
 
@@ -67,6 +71,10 @@ def resolve_history(history: list[dict], bundle) -> list[dict]:
         if len(later) == 0:
             continue
         exec_date = later[0]
+        # 当日の立会中は提供元が途中経過のバーを返すので、大引け後まで採点しない
+        now = datetime.now(JST)
+        if exec_date.date() >= now.date() and (now.hour, now.minute) < (15, 45):
+            continue
         row = jp_oc.loc[exec_date]
         longs = [t for t in rec["long"] if t in row.index and np.isfinite(row[t])]
         shorts = [t for t in rec["short"] if t in row.index and np.isfinite(row[t])]
@@ -85,10 +93,31 @@ def resolve_history(history: list[dict], bundle) -> list[dict]:
                 "market_return": mkt,
             }
         )
+        # モデル別の採点。寄付き→大引け (ls) と、同じ選択で測った
+        # 前日大引け→寄付き (ls_overnight)。後者が大きく前者が小さいときは、
+        # 予想が寄付きの時点で先に織り込まれている (2026-10 検証参照)。
+        co_row = None
+        if getattr(bundle, "jp_co_all", None) is not None and exec_date in bundle.jp_co_all.index:
+            co_row = bundle.jp_co_all.loc[exec_date]
+        for m in (rec.get("models") or {}).values():
+            lo = [t for t in m["long"] if t in row.index and np.isfinite(row[t])]
+            sh = [t for t in m["short"] if t in row.index and np.isfinite(row[t])]
+            if lo and sh:
+                m["ls_return"] = float(row[lo].mean() - row[sh].mean())
+            if co_row is not None:
+                lo2 = [t for t in m["long"] if t in co_row.index and np.isfinite(co_row[t])]
+                sh2 = [t for t in m["short"] if t in co_row.index and np.isfinite(co_row[t])]
+                if lo2 and sh2:
+                    m["ls_overnight"] = float(co_row[lo2].mean() - co_row[sh2].mean())
     return history
 
 
 def append_today(history: list[dict], rec: dict) -> list[dict]:
+    # 寄付き前に出した予想は、寄付き後の再実行（夕方の採点など）で上書きしない。
+    # 上書きすると「寄付き前に公開した予想」の記録が後から変わってしまう。
+    prev = next((h for h in history if h["asof"] == rec["asof"]), None)
+    if prev is not None and prev.get("pre_open") and not rec.get("pre_open", True):
+        return history
     history = [h for h in history if h["asof"] != rec["asof"]]
     history.append(rec)
     history.sort(key=lambda h: h["asof"])
@@ -201,6 +230,73 @@ def row_html(ticker: str, sig: float, vmax: float, tag: str,
       </li>"""
 
 
+def next_tokyo_session(asof: pd.Timestamp):
+    """基準日 (米国の日付) の次の東京立会日。土日・祝日・年末年始 (12/31〜1/3) を飛ばす。"""
+    try:
+        import jpholiday
+    except ImportError:          # 無ければ土日だけ飛ばす
+        jpholiday = None
+    d = (pd.Timestamp(asof) + pd.Timedelta(days=1)).date()
+    while (d.weekday() >= 5 or (d.month, d.day) in {(12, 31), (1, 1), (1, 2), (1, 3)}
+           or (jpholiday is not None and jpholiday.is_holiday(d))):
+        d += timedelta(days=1)
+    return d
+
+
+def _name(t: str) -> str:
+    return html.escape(display_name(t))
+
+
+def model_compare_html(models_rec: dict) -> str:
+    """モデルごとのロング/ショートを並べる。全モデルが一致する業種は太字。"""
+    names = [m for m in MODEL_ORDER if m in models_rec]
+    if not names:
+        return ""
+    def common(side: str) -> set:
+        sets = [set(models_rec[m][side]) for m in names]
+        return set.intersection(*sets) if sets else set()
+    cl, cs = common("long"), common("short")
+    rows = []
+    for m in names:
+        lo = "・".join(f"<b>{_name(t)}</b>" if t in cl else _name(t) for t in models_rec[m]["long"])
+        sh = "・".join(f"<b>{_name(t)}</b>" if t in cs else _name(t) for t in models_rec[m]["short"])
+        tag = ' <span class="weak">メイン</span>' if m == MAIN_MODEL else ""
+        rows.append(f'<li class="mrow"><p class="mname">{html.escape(MODEL_LABEL.get(m, m))}{tag}</p>'
+                    f'<p class="ml"><span class="up">▲</span> {lo}</p>'
+                    f'<p class="ml"><span class="down">▼</span> {sh}</p></li>')
+    return "\n".join(rows)
+
+
+def model_perf_html(history: list[dict]) -> str:
+    """モデル別の採点結果（寄付き前に作成した予想だけを集計）。"""
+    stats = []
+    for m in MODEL_ORDER:
+        rs, on = [], []
+        for h in history:
+            if not h.get("resolved") or not h.get("pre_open", False):
+                continue
+            mm = (h.get("models") or {}).get(m)
+            if mm and "ls_return" in mm:
+                rs.append(mm["ls_return"])
+                if "ls_overnight" in mm:
+                    on.append(mm["ls_overnight"])
+        if not rs:
+            continue
+        cum = (np.prod([1 + r for r in rs]) - 1) * 100
+        win = np.mean([r > 0 for r in rs]) * 100
+        onv = f"{np.sum(on)*100:+.1f}%" if on else "—"
+        stats.append(f'<tr><td>{html.escape(MODEL_LABEL.get(m, m))}</td><td>{len(rs)}</td>'
+                     f'<td class="{"pos" if cum >= 0 else "neg"}">{cum:+.1f}%</td>'
+                     f'<td>{win:.0f}%</td><td>{onv}</td></tr>')
+    if not stats:
+        return '<p class="meta">モデル別の採点は、寄付き前に作成した予想がたまり次第ここに出ます。</p>'
+    return ('<table class="perf"><tr><th>モデル</th><th>日数</th><th>累積</th><th>勝率</th>'
+            '<th>夜間側</th></tr>' + "".join(stats) + '</table>'
+            '<p class="meta">寄付き前に作成した予想だけを集計（取引コスト控除前）。'
+            '「夜間側」は同じ選択で前日大引け→寄付きを測った合計。ここが大きく累積が小さい'
+            'ときは、寄付きの時点で先に織り込まれています。</p>')
+
+
 # ---------------------------------------------------------------------------
 def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
           bundle=None, holdings: dict | None = None) -> Path:
@@ -231,8 +327,19 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         holdings = ({} if (synthetic or bundle_is_synthetic)
                     else refresh_holdings(outdir / "holdings.json"))
 
-    # 次の東京立会日 (概算: 翌営業日。祝日は当日になって確定する)
-    next_session = (asof + pd.offsets.BDay(1)).date()
+    # 次の東京立会日（土日・祝日・年末年始を飛ばす）
+    next_session = next_tokyo_session(asof)
+    now_jst = datetime.now(JST)
+    pre_open = now_jst < datetime(next_session.year, next_session.month,
+                                  next_session.day, 9, 0, tzinfo=JST)
+
+    # 各モデルのスコア。メインは SCS（leadlag/models.py の注記参照）
+    model_scores = all_models(bundle, params, asof, sig)
+    models_rec = {}
+    for name, sc in model_scores.items():
+        lo, sh = select_long_short(sc, params.quantile)
+        models_rec[name] = {"long": lo, "short": sh,
+                            "signals": {t: float(sc[t]) for t in sc.dropna().index}}
 
     hist_path = outdir / "history.json"
     history = resolve_history(load_history(hist_path), bundle)
@@ -246,11 +353,25 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
             "strength": md["strength"],
             "us_ew": float(md["us_ew_cc"]),
             "signals": {t: float(sig[t]) for t in sig.index},
+            "models": models_rec,
+            "main": MAIN_MODEL,
+            "target": str(next_session),
+            "created_at": now_jst.strftime("%Y-%m-%d %H:%M"),
+            "pre_open": bool(pre_open),
             "resolved": False,
         },
     )
     hist_path.parent.mkdir(parents=True, exist_ok=True)
     hist_path.write_text(json.dumps(history, ensure_ascii=False, indent=1))
+
+    # 寄付き前に出した予想が残っていれば、ページもその内容で描く（予備実行で変えない）
+    shown = next((h for h in history if h["asof"] == str(asof.date())), None)
+    if shown and shown.get("models"):
+        models_rec = shown["models"]
+        pre_open = bool(shown.get("pre_open", pre_open))
+        created_str = str(shown.get("created_at", ""))[5:].replace("-", "/")
+    else:
+        created_str = now_jst.strftime("%m/%d %H:%M")
 
     done = [h for h in history if h.get("resolved")]
     recent = done[-60:]
@@ -275,10 +396,20 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     strength_cls = {"強い": "st5", "やや強い": "st4", "標準": "st3",
                     "やや弱い": "st2", "弱い": "st1"}[strength]
 
-    long_rows = "\n".join(row_html(t, sig[t], vmax, "ロング", holdings.get(t)) for t in longs)
-    short_rows = "\n".join(row_html(t, sig[t], vmax, "ショート", holdings.get(t)) for t in shorts)
-    mid = [t for t in sig.index if t not in longs and t not in shorts]
-    mid_rows = "\n".join(row_html(t, sig[t], vmax, "-", holdings.get(t)) for t in mid)
+    # 業種ランキングの本体はメインモデル (SCS)。米国リターン (%) をそのまま表示する
+    main = models_rec.get(MAIN_MODEL) or models_rec["PCA_SUB"]
+    msig = pd.Series(main["signals"]).reindex(
+        [t for t in res.jp_tickers if t in main["signals"]])
+    msig = msig.sort_values(ascending=False, kind="stable")
+    disp = msig * (100 if MAIN_MODEL == "SCS" else 1)
+    mvmax = float(np.abs(disp.to_numpy()).max()) or 1.0
+    m_long, m_short = main["long"], main["short"]
+    long_rows = "\n".join(row_html(t, disp[t], mvmax, "ロング", holdings.get(t)) for t in m_long)
+    short_rows = "\n".join(row_html(t, disp[t], mvmax, "ショート", holdings.get(t)) for t in m_short)
+    mid = [t for t in msig.index if t not in m_long and t not in m_short]
+    mid_rows = "\n".join(row_html(t, disp[t], mvmax, "-", holdings.get(t)) for t in mid)
+    compare_html = model_compare_html(models_rec)
+    perf_html = model_perf_html(history)
     us_rows = "\n".join(
         f'      <li class="row plain {"long" if v >= 0 else "short"}">'
         f'<span class="tk">{t}</span>'
@@ -339,6 +470,11 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
         us_last=us_last,
         jp_last=jp_last,
         holdings_src=holdings_src,
+        compare_html=compare_html,
+        perf_html=perf_html,
+        main_label=MODEL_LABEL.get(MAIN_MODEL, MAIN_MODEL),
+        created=created_str,
+        pre_open_note=("寄付き前に作成" if pre_open else "寄付き後に作成（参考扱い）"),
     )
 
     outdir.mkdir(parents=True, exist_ok=True)
@@ -477,6 +613,15 @@ details[open] > summary:not(.rowsum)::after {{ content:" ⌄"; }}
 .hv {{ text-align:right; font-variant-numeric:tabular-nums; }}
 .hv.pos {{ color:var(--up); }} .hv.neg {{ color:var(--down); }}
 .hm {{ text-align:right; color:var(--muted); }}
+.mrow {{ padding:8px 0; border-bottom:1px solid var(--line); }}
+.mrow:last-child {{ border-bottom:0; }}
+.mname {{ font-size:13px; font-weight:600; margin:0 0 2px; }}
+.ml {{ font-size:13px; margin:1px 0; line-height:1.5; }}
+table.perf {{ width:100%; border-collapse:collapse; font-size:13px; font-variant-numeric:tabular-nums; }}
+table.perf th, table.perf td {{ padding:5px 4px; border-bottom:1px solid var(--line); text-align:right; }}
+table.perf th:first-child, table.perf td:first-child {{ text-align:left; }}
+table.perf th {{ font-size:11px; color:var(--muted); font-weight:600; }}
+td.pos {{ color:var(--up); }} td.neg {{ color:var(--down); }}
 .stale {{ display:none; background:var(--down); color:#fff; border-radius:12px;
   padding:10px 14px; font-size:13px; margin-bottom:12px; }}
 footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0; }}
@@ -517,6 +662,7 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 
 <section class="card">
   <h2>業種ランキング（相対の強弱）</h2>
+  <p class="meta" style="margin-top:0">モデル: <b>{main_label}</b>（対応する米国業種ETFの当日リターン%）・{created} {pre_open_note}</p>
   <p class="label l">▲ ロング（強いと予想）</p>
   <ul>
 {long_rows}
@@ -541,7 +687,21 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
 </section>
 
 <section class="card">
-  <h2>直近の実績（ロングショート）</h2>
+  <h2>モデル別の予想</h2>
+  <ul>
+{compare_html}
+  </ul>
+  <p class="meta">太字は全モデルが一致した業種。部分空間正則化PCAは論文公開（2026/3/19）後に
+     寄付きで先回りされ、3〜7月に大きく崩れました（検証レポート参照）。</p>
+</section>
+
+<section class="card">
+  <h2>モデル別の成績</h2>
+  {perf_html}
+</section>
+
+<section class="card">
+  <h2>直近の実績（部分空間正則化PCA・ロングショート）</h2>
   <div class="stats">
     <div class="stat"><div class="v">{ls_total}</div><div class="k">直近{n_hist}営業日 累積</div></div>
     <div class="stat"><div class="v">{intraday_avg}</div><div class="k">日中EWの平均<br>（1日あたり）</div></div>
@@ -555,16 +715,18 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   </details>
   <p class="meta">実際に運用した記録ではなく、毎朝このページが出した予想を
      その日の実現リターンで後から採点したものです。取引コストは含みません。<br>
-     <b>検証メモ:</b> 2015〜2025年の再現では良好でしたが、①片道4.6bpsで損益が消える
-     回転率、②2026年に入っての大幅な悪化、が確認されています。詳細は検証レポートを
-     参照してください。</p>
+     <b>検証メモ（2026-10）:</b> 2015〜2025年はSCS R/R 3.96・PCA_SUB 2.37と良好でしたが、
+     論文公開後（3/19〜7/23）にPCA_SUBは −35.8%。同じ予想で前日大引け→寄付きを測ると
+     公開後に大きく増えており、寄付きで先に織り込まれています。損益分岐は片道
+     2.6bp（PCA_SUB）〜4.0bp（SCS）。詳細は results/verification_2026-10/ を参照。</p>
 </section>
 
 <footer>
   生成: {generated}　/　取得できたデータの最終日: 米国 {us_last}・日本 {jp_last}<br>
   構成銘柄: 野村アセットマネジメント「組入全銘柄情報」（月次）{holdings_src}<br>
   中川 慧ほか「部分空間正則化付き主成分分析を用いた日米業種リードラグ投資戦略」
-  (SIG-FIN-036-13) の再現実装による出力です。<br>
+  (SIG-FIN-036-13)、金谷・吉田「日米リード・ラグ戦略のための業種対応シグナル」
+  (SIG-FIN-037-11) の再現実装による出力です。<br>
   <b>投資助言ではありません。</b>バックテスト上の成績は将来の成果を保証しません。
   実際の売買では取引コスト・スリッページ・流動性の影響を受けます。
   投資判断はご自身の責任で行ってください。

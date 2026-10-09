@@ -3,6 +3,18 @@
   L_{t+1} = シグナル上位 q, S_{t+1} = 下位 q
   w = +1/|L| (ロング), -1/|S| (ショート)  → Σw = 0, Σ|w| = 2
   R_{t+1} = Σ_j w_j * r^oc_{j,t+1}
+
+保有の仕方 (Params.holding) と回転率
+  "intraday"  (既定・論文どおり): 寄付きで建てて大引けで必ず手仕舞う。
+               リターンは寄付き→大引け、回転率は毎日 2Σ|w| (建て Σ|w| + 手仕舞い Σ|w|)。
+               Σ|w|=2 なので 1 日 4（資本の 4 倍）。前日とウェイトが同じでも
+               いったん手仕舞っているので、回転率は下がらない。
+  "overnight" : ポジションを翌執行日の寄付きまで持ち越し、寄付きで差分だけ売買する。
+               リターンは寄付き→次の執行日の寄付き、回転率は |w_t - w_{t-1}|。
+               平滑化で回転率を下げる効果は、この持ち方でしか得られない。
+
+2026-10 以前は "intraday" のリターンに "overnight" の回転率（ウェイト差）を
+組み合わせていたため、コストを約半分に見積もっていた。
 """
 
 from __future__ import annotations
@@ -73,8 +85,17 @@ def run_strategy(
 ) -> StrategyResult:
     """シグナル panel を受け取り、t+1 の open-to-close で執行した結果を返す。"""
     q = params.quantile
+    holding = getattr(params, "holding", "intraday")
+    if holding not in ("intraday", "overnight"):
+        raise ValueError(f"holding は 'intraday' か 'overnight': {holding!r}")
     rows_w, rows_r, rows_gr, rows_to = {}, {}, {}, {}
     prev_w: pd.Series | None = None
+
+    # overnight: 次の執行日の寄付きまで持つ。最後の日は次の寄付きがないので日中だけ。
+    order = list(signals.index)
+    next_exec = {
+        exec_dates.loc[a]: exec_dates.loc[b] for a, b in zip(order[:-1], order[1:])
+    }
 
     for t in signals.index:
         exec_date = exec_dates.loc[t]
@@ -87,11 +108,22 @@ def run_strategy(
             w = cross_section_weights(row, q)
 
         r_oc = bundle.jp_oc.loc[exec_date].reindex(w.index)
-        valid = r_oc.notna()
+        if holding == "overnight" and exec_date in next_exec:
+            nxt = next_exec[exec_date]
+            r_hold = (bundle.jp_open.loc[nxt] / bundle.jp_open.loc[exec_date] - 1.0
+                      ).reindex(w.index)
+            # 無料データの異常な寄付き値（例: 1629.T の 2026/3/31）は data.sanitize_returns と
+            # 同じ ±50% の基準で除き、次の寄付きが取れない銘柄と同様に大引けで外したとみなす
+            r_hold = r_hold.where(r_hold.notna() & (r_hold.abs() <= 0.5), r_oc)
+        else:
+            r_hold = r_oc
+        valid = r_hold.notna()
         w = w.where(valid, 0.0)
-        gross = float((w * r_oc.fillna(0.0)).sum())
+        gross = float((w * r_hold.fillna(0.0)).sum())
 
-        if prev_w is None:
+        if holding == "intraday":
+            turn = 2.0 * float(w.abs().sum())        # 寄付きで建て、大引けで手仕舞う
+        elif prev_w is None:
             turn = float(w.abs().sum())
         else:
             turn = float((w - prev_w.reindex(w.index).fillna(0.0)).abs().sum())

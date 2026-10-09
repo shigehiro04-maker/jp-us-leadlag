@@ -272,3 +272,34 @@ def test_max_drawdown_sign_and_scale():
 
 if __name__ == "__main__":
     raise SystemExit(pytest.main([__file__, "-v"]))
+
+
+def test_intraday_turnover_is_full_round_trip():
+    """寄付き→大引けの往復では、ウェイトが前日と同じでも毎日 2Σ|w| = 4 売買する。"""
+    bundle, _ = make_bundle(n_days=600, seed=8, rho=0.4)
+    base = Params(window=60, prior_mode="expanding", prior_min_obs=300)
+    panel = LeadLagEngine(bundle, base).run()
+    res = run_all(panel, bundle, base)["strategies"]["PCA_SUB"]
+    active = res.weights.abs().sum(axis=1) > 0
+    assert np.allclose(res.turnover[active], 2 * res.weights.abs().sum(axis=1)[active])
+    assert np.allclose(res.turnover[active], 4.0)
+
+
+def test_overnight_holding_open_to_open_and_diff_turnover():
+    """持ち越しでは、リターンは寄付き→次の寄付き、回転率はウェイト差になる。"""
+    from leadlag.backtest import run_strategy
+    bundle, _ = make_bundle(n_days=600, seed=8, rho=0.4)
+    base = Params(window=60, prior_mode="expanding", prior_min_obs=300, holding="overnight")
+    panel = LeadLagEngine(bundle, base).run()
+    sig = panel.pca_sub
+    # 毎日同じシグナル → ウェイト一定 → 2 日目以降の回転率は 0
+    const = pd.DataFrame([sig.iloc[0].values] * len(sig), index=sig.index, columns=sig.columns)
+    res = run_strategy(const, bundle, panel.execution_date, base)
+    assert res.turnover.iloc[0] > 0
+    assert np.allclose(res.turnover.iloc[1:], 0.0)
+    # 1 日目のリターン = Σ w * (次の執行日の寄付き / 当日寄付き - 1)
+    ex = panel.execution_date
+    d0, d1 = ex.iloc[0], ex.iloc[1]
+    w = res.weights.loc[d0]
+    r = (bundle.jp_open.loc[d1] / bundle.jp_open.loc[d0] - 1).reindex(w.index).fillna(0)
+    assert np.isclose(res.gross_returns.loc[d0], float((w * r).sum()))

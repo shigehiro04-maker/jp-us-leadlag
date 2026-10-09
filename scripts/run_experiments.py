@@ -15,9 +15,14 @@
   2. λ と K を変えたとき、直近レジーム（2024 年以降、2026 年）で生き残る設定が
      あるか。全期間で最良でも直近で壊れていれば意味がない。
   3. 平滑化で回転率がどれだけ下がり、損益分岐コストがどこまで上がるか。
-     現状の損益分岐は片道 4.6bp で、現実的なコスト（10〜30bp）に届いていない。
+     注意: 寄付き→大引けで毎日往復する持ち方（--holding intraday、既定）では、
+     平滑化しても回転率は 4/日のまま下がらない。平滑化で回転率が下がるのは
+     ポジションを持ち越す --holding overnight のときだけ（リターンも寄付き→寄付きになる）。
+     2026-10 以前のこのスクリプトは、日中リターンに持ち越し時の回転率を組み合わせており、
+     損益分岐を約 2 倍に見積もっていた。
 
   python scripts/run_experiments.py --outdir results_exp
+  python scripts/run_experiments.py --outdir results_exp_overnight --holding overnight
 """
 
 from __future__ import annotations
@@ -185,6 +190,10 @@ def main() -> int:
     ap.add_argument("--lams", default="0.5,0.7,0.9,0.95")
     ap.add_argument("--ks", default="3,4,5")
     ap.add_argument("--costs", default="0,5,10,20")
+    ap.add_argument("--holding", choices=["intraday", "overnight"], default="intraday",
+                    help="intraday=寄付き→大引けで毎日往復 / overnight=次の寄付きまで持ち越し")
+    ap.add_argument("--no-refresh", action="store_true",
+                    help="キャッシュ済みの価格データを使う（ネットワーク不要）")
     ap.add_argument("--grid-halflives", default="なし,10",
                     help="λ×K 表で使う半減期（'なし' で平滑化しない）")
     a = ap.parse_args()
@@ -201,7 +210,8 @@ def main() -> int:
     else:
         _log("価格データを取得中…")
         from leadlag.data import build_bundle, load_prices
-        us_panel, jp_panel = load_prices(start=a.start, cache_dir=a.cache, refresh=True)
+        us_panel, jp_panel = load_prices(start=a.start, cache_dir=a.cache,
+                                         refresh=not a.no_refresh)
         bundle = build_bundle(us_panel, jp_panel)
         base_kwargs = dict(prior_mode="fixed")
     _log(f"共通営業日 {len(bundle.dates)} 日 "
@@ -216,7 +226,7 @@ def main() -> int:
         for x in a.grid_halflives.split(",")
     ]
 
-    base = Params(backtest_start=a.backtest_start, **base_kwargs)
+    base = Params(backtest_start=a.backtest_start, holding=a.holding, **base_kwargs)
 
     # ----- 1. 平滑化（論文の λ=0.9, K=3 を固定して平滑化だけを動かす） -----
     _log("1/3 平滑化の効果…")
@@ -295,6 +305,8 @@ def main() -> int:
         f"- データ: {bundle.dates[0].date()} 〜 {bundle.dates[-1].date()}",
         "- 設定: L=60, q=0.3, 事前行列は固定（論文どおり）",
         "- 平滑化は過去のシグナルのみを使う指数移動平均（先読みなし）",
+        ("- 保有: 寄付き→大引けで毎日往復（回転率は 1 日 4 で一定）" if a.holding == "intraday"
+         else "- 保有: 次の執行日の寄付きまで持ち越し（リターンは寄付き→寄付き、回転率はウェイト差）"),
         "",
         "## 1. ランキングの安定性と情報係数",
         "",

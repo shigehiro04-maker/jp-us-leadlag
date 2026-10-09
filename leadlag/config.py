@@ -114,6 +114,9 @@ class Params:
     end: str | None = None           # None なら最新まで
     backtest_start: str | None = None  # None なら train_end の翌日
     cost_bps: float = 0.0            # 片道コスト(bps)。論文は 0 (コスト考慮なし)
+    # "intraday": 寄付き→大引けで毎日往復（論文どおり。回転率 4/日）
+    # "overnight": 次の執行日の寄付きまで持ち越し、差分だけ売買
+    holding: str = "intraday"
     ann_factor: int = 252            # 年率換算係数
 
     # --- 実装オプション ---

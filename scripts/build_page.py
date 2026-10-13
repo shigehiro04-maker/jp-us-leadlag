@@ -423,10 +423,12 @@ def model_perf_html(history: list[dict]) -> str:
     daily_body = f"""{viz.legend(names)}
     {viz.daily_table(recs, names)}"""
     return f"""<div class="tiles">{"".join(tiles)}</div>
+  <div class="perfgrid">
   {sub("累積リターン（ロング5−ショート5、寄付き→大引け）", cum_body, "cum", True)}
   {sub("寄付きで先に織り込まれていないか", split_body, "split")}
   {sub(f"前回の答え合わせ（{last['exec_date']}・業種別の寄付き→大引け）", ans_body, "ans")}
   {sub("日別の実績（ロング−ショート %、直近20日）", daily_body, "daily")}
+  </div>
   <p class="meta">取引コスト控除前。実際に運用した記録ではなく、予想をその日の実現リターンで採点したものです。</p>"""
 
 
@@ -864,6 +866,25 @@ html.dk .kb-knob .kb-moon {{ opacity:1; transform:none; }}
 html.dk .kb-l {{ opacity:1; }} html.dk .kb-r {{ opacity:0; }}
 @media (prefers-reduced-motion:reduce) {{ .kb-theme * {{ transition:none !important; }} }}
 header h1, header .date, header .sub {{ padding-right:64px; }}
+/* ---- PC（横幅が広い画面）向けの配置 ---- */
+@media (min-width: 980px) {{
+  body {{ max-width:1200px; padding-left:24px; padding-right:24px; }}
+  header {{ margin:8px 4px 18px; }}
+  .date {{ font-size:32px; }}
+  .layout {{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); gap:16px; align-items:start; }}
+  .layout > .col {{ display:flex; flex-direction:column; gap:12px; min-width:0; }}
+  .layout > .col > .card {{ margin-bottom:0; }}
+  .layout > .wide {{ grid-column:1 / -1; }}
+  .tiles {{ grid-template-columns:repeat(4, minmax(0,1fr)); }}
+  .perfgrid {{ display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr); column-gap:28px; align-items:start; }}
+  .perfgrid > details.subfold {{ min-width:0; }}
+  .moodword {{ font-size:34px; }}
+  .chart {{ max-height:300px; }}
+  table.grid th.gt {{ max-width:none; }}
+}}
+@media (min-width: 1400px) {{
+  body {{ max-width:1320px; }}
+}}
 .mrow {{ padding:8px 0; border-bottom:1px solid var(--line); }}
 .mrow:last-child {{ border-bottom:0; }}
 .mname {{ font-size:13px; font-weight:600; margin:0 0 2px; }}
@@ -888,6 +909,8 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   <p class="sub">NY {asof} 終値時点の情報にもとづく（寄付き→大引け）</p>
 </header>
 
+<main class="layout">
+<div class="col col-a">
 <details class="card fold" open data-k="mood">
   <summary class="fh"><h2>今日の日中（寄付き→大引け）の地合い</h2><span class="tri" aria-hidden="true">▼</span></summary>
   {mood}
@@ -912,6 +935,8 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   </details>
 </details>
 
+</div>
+<div class="col col-b">
 <details class="card fold" data-k="us">
   <summary class="fh"><h2>前夜の米国11業種（{asof}）</h2><span class="tri" aria-hidden="true">▼</span></summary>
   <p class="meta" style="margin-top:0">右は、その動きを受け取る日本の業種（業種対応 SCS の対応表）。</p>
@@ -934,7 +959,8 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
      3〜7月に大きく崩れました（検証レポート参照）。</p>
 </details>
 
-<details class="card fold" open data-k="perf">
+</div>
+<details class="card fold wide" open data-k="perf">
   <summary class="fh"><h2>モデル別の成績</h2><span class="tri" aria-hidden="true">▼</span></summary>
   {perf_html}
   <p class="meta"><b>検証メモ（2026-10）:</b> 2015〜2025年はSCS R/R 3.96・PCA_SUB 2.37と良好でしたが、
@@ -942,6 +968,7 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
      公開後に大きく増えており、寄付きで先に織り込まれています。損益分岐は片道
      2.6bp（PCA_SUB）〜4.0bp（SCS）。詳細は results/verification_2026-10/ を参照。</p>
 </details>
+</main>
 
 
 <footer>
@@ -965,7 +992,10 @@ footer {{ font-size:11px; color:var(--muted); line-height:1.6; margin:18px 4px 0
   // 折りたたみの開閉を端末ごとに覚えておく
   document.querySelectorAll("details[data-k]").forEach(function (d) {{
     var k = "fold:" + d.getAttribute("data-k");
-    try {{ var v = localStorage.getItem(k); if (v !== null) d.open = (v === "1"); }} catch (e) {{}}
+    var saved = null;
+    try {{ saved = localStorage.getItem(k); }} catch (e) {{}}
+    if (saved !== null) d.open = (saved === "1");
+    else if (window.matchMedia && matchMedia("(min-width: 980px)").matches) d.open = true;  // PC は最初から全部開く
     d.addEventListener("toggle", function () {{
       try {{ localStorage.setItem(k, d.open ? "1" : "0"); }} catch (e) {{}}
     }});

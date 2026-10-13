@@ -24,18 +24,38 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - name: Mac が今朝すでに公開していれば何もしない
+        id: fresh
+        run: |
+          python - <<'PY'
+          import json, os, datetime
+          today = (datetime.datetime.utcnow() + datetime.timedelta(hours=9)).strftime("%Y-%m-%d")
+          try:
+              h = json.load(open("docs/history.json"))
+          except Exception:
+              h = []
+          fresh = any(str(r.get("created_at", "")).startswith(today) for r in h)
+          print("Mac の公開あり" if fresh else "Mac の公開なし → 予備で作成")
+          with open(os.environ["GITHUB_OUTPUT"], "a") as f:
+              f.write(f"skip={'true' if fresh else 'false'}\n")
+          PY
+
       - uses: actions/setup-python@v5
+        if: steps.fresh.outputs.skip != 'true'
         with:
           python-version: "3.12"
           cache: pip
 
       - name: 依存関係をインストール
+        if: steps.fresh.outputs.skip != 'true'
         run: pip install -r requirements.txt
 
       - name: 予測ページを生成
+        if: steps.fresh.outputs.skip != 'true'
         run: python scripts/build_page.py --outdir docs
 
       - name: 変更をコミット
+        if: steps.fresh.outputs.skip != 'true'
         run: |
           git config user.name  "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
@@ -45,6 +65,6 @@ jobs:
             echo "変更なし"
           else
             git commit -m "update: $(date -u +%Y-%m-%d) の予測（予備）"
-            git pull --rebase origin main
-            git push
+            # Mac 側が先に公開していたら、予備の公開は見送る（生成物どうしの競合を作らない）
+            git push || echo "Mac 側が先に公開したため、予備の公開は見送りました"
           fi

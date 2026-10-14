@@ -463,6 +463,13 @@ def build(outdir: Path, params: Params, cache: str, synthetic: int = 0,
     engine = LeadLagEngine(bundle, params)
     asof, res = engine.latest()
 
+    # 提供元が一時的に古いデータを返すことがある（2026-10-14 朝、米国の前日分が欠けた）。
+    # すでに公開済みの予想より古い基準日でページを作り直すと、終わった立会日の予想に
+    # 戻ってしまうので、その場合は何もしない（公開スクリプトはこの終了で中止する）。
+    newest = max((h["asof"] for h in load_history(outdir / "history.json")), default="")
+    if newest and str(asof.date()) < newest:
+        raise SystemExit(f"取得したデータが古いため中止: 基準日 {asof.date()} < 公開済み {newest}")
+
     sig = pd.Series(res.scores, index=res.jp_tickers).sort_values(ascending=False)
     w = cross_section_weights(sig, params.quantile)
     longs = [t for t in sig.index if w.get(t, 0) > 0]

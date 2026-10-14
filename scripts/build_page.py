@@ -332,6 +332,19 @@ def model_compare_html(models_rec: dict) -> str:
     return "\n".join(rows)
 
 
+def scored_records(history: list[dict]) -> list[dict]:
+    """採点済みの記録。同じ執行日に複数の予想がある場合（祝日をはさんで、米国の
+    最新終値が届く前の予想と届いた後の予想ができた日など）は、基準日の新しいほうだけを使う。"""
+    by = {}
+    for h in history:
+        if not (h.get("resolved") and h.get("exec_date")):
+            continue
+        k = h["exec_date"]
+        if k not in by or h["asof"] > by[k]["asof"]:
+            by[k] = h
+    return [by[k] for k in sorted(by)]
+
+
 def summary_json(asof, next_session, models_rec, pre_open, created_str, md, history) -> dict:
     """他のページ（東証株分析のトップなど）から読む要約。docs/summary.json に出す。"""
     word, cls = MOOD_TEXT[md["strength"]]
@@ -339,7 +352,7 @@ def summary_json(asof, next_session, models_rec, pre_open, created_str, md, hist
     perf = {}
     for m in MODEL_ORDER:
         xs = [(h["models"][m]["ls_return"], bool(h.get("pre_open")))
-              for h in history if h.get("resolved") and "ls_return" in (h.get("models") or {}).get(m, {})]
+              for h in scored_records(history) if "ls_return" in (h.get("models") or {}).get(m, {})]
         if not xs:
             continue
         live = [r for r, p in xs if p]
@@ -349,7 +362,7 @@ def summary_json(asof, next_session, models_rec, pre_open, created_str, md, hist
             "win": float(np.mean([r > 0 for r, _ in xs])),
             "n_live": len(live), "cum_live": float(np.prod([1 + r for r in live]) - 1) if live else None,
         }
-    last = next((h for h in reversed(history) if h.get("resolved") and h.get("models")), None)
+    last = next((h for h in reversed(scored_records(history)) if h.get("models")), None)
     return {
         "asof": str(asof.date()), "target": str(next_session), "created": created_str,
         "pre_open": bool(pre_open), "main": MAIN_MODEL, "main_label": MODEL_LABEL.get(MAIN_MODEL),
@@ -367,7 +380,7 @@ def summary_json(asof, next_session, models_rec, pre_open, created_str, md, hist
 
 def model_perf_html(history: list[dict]) -> str:
     """モデル別の成績: 指標タイル・累積の折れ線・夜間/日中の比較・答え合わせ・日別の表。"""
-    recs = [h for h in history if h.get("resolved") and h.get("models")
+    recs = [h for h in scored_records(history) if h.get("models")
             and any("ls_return" in m for m in h["models"].values())]
     if not recs:
         return '<p class="meta">モデル別の実績は、予想の翌営業日の大引け後から表示されます。</p>'
